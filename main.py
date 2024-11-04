@@ -7,6 +7,7 @@ import glob #allows you to read the names of files in folders
 from scipy.optimize import curve_fit
 from astropy.io import fits
 from astropy.table import Table
+cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 
 max_z = 0.1 #maximum redshift of galaxies being looked for
 min_n = 30 #minimum companions according to cluster catalogue
@@ -71,16 +72,16 @@ for i in range(len(galzoo_data)):
     z.append(galzoo_data[i][18])
 
 for i in range(len(ID)):
+    print(z[i])
     for j in range(len(reduced_clusters_id)):
         templist = []
-        if np.sqrt(((reduced_clusters_ra[j] - RA[i]) ** 2) * (np.cos(reduced_clusters_dec[j]) ** 2) + ((reduced_clusters_dec[j] - DEC[i]) ** 2)) < 0.31 and 0.0403 < z[i] < 0.0503:
+        if np.sqrt(((reduced_clusters_ra[j] - RA[i]) ** 2) * (np.cos(reduced_clusters_dec[j]) ** 2) + ((reduced_clusters_dec[j] - DEC[i]) ** 2)) < ((1000 / 3600) * cosmo.arcsec_per_kpc_proper(z[i])) and (z[i] - 0.01) < z[i] < (z[i] + 0.01):
             templist.append(ID[i])
     reduced_clusters_locals.append(templist)
 
 print(len(reduced_clusters_id))
 print(reduced_clusters_locals)
 print(len(reduced_clusters_locals))
-
 
 
 
