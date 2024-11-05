@@ -41,10 +41,6 @@ for i in range(len(cluster_data)):
         cluster_z.append(cluster_data[i][12])
         cluster_n.append(cluster_data[i][18])
 
-"""for i in range(len(bcg_data)):
-    print(bcg_data[i][0])"""
-#print(cluster_id)
-
 reduced_clusters_id = []
 reduced_clusters_z = []
 reduced_clusters_ra = []
@@ -71,13 +67,20 @@ for i in range(len(galzoo_data)):
     DEC.append(galzoo_data[i][14])
     z.append(galzoo_data[i][18])
 
-for i in range(len(ID)):
-    print(z[i])
+print(reduced_clusters_ra)
+print(reduced_clusters_dec)
+print(RA)
+print(DEC)
+
+"""for i in range(len(ID)):
+    #print(z[i])
+    #print(cosmo.arcsec_per_kpc_proper(z[i]).value)
     for j in range(len(reduced_clusters_id)):
         templist = []
-        if np.sqrt(((reduced_clusters_ra[j] - RA[i]) ** 2) * (np.cos(reduced_clusters_dec[j]) ** 2) + ((reduced_clusters_dec[j] - DEC[i]) ** 2)) < ((1000 / 3600) * cosmo.arcsec_per_kpc_proper(z[i])) and (z[i] - 0.01) < z[i] < (z[i] + 0.01):
+        print(np.sqrt(((reduced_clusters_ra[j] - RA[i]) ** 2) * (np.cos(reduced_clusters_dec[j]) ** 2) + ((reduced_clusters_dec[j] - DEC[i]) ** 2)))
+        if np.sqrt(((reduced_clusters_ra[j] - RA[i]) ** 2) * (np.cos(reduced_clusters_dec[j]) ** 2) + ((reduced_clusters_dec[j] - DEC[i]) ** 2)) < ((1000 / 3600) * cosmo.arcsec_per_kpc_proper(z[i]).value) and (z[i] - 0.01) < z[i] < (z[i] + 0.01):
             templist.append(ID[i])
-    reduced_clusters_locals.append(templist)
+    reduced_clusters_locals.append(templist)"""
 
 print(len(reduced_clusters_id))
 print(reduced_clusters_locals)
