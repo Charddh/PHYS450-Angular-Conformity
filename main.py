@@ -73,14 +73,7 @@ print(min(abs(dec_diff)))
 print(min(abs(ra_diff)))
 print(min(abs(z_diff)))"""
 
-
-
 reduced_clusters_locals = []
-
-
-
-ang_diff = []
-z_diff = []
 
 for j in range(len(reduced_clusters_id)):
     gz_id_templist = []
@@ -90,6 +83,13 @@ for j in range(len(reduced_clusters_id)):
             gz_id_templist.append(gz_id[i])
     reduced_clusters_locals.append(gz_id_templist)
 
+
 print(len(reduced_clusters_id))
 print(reduced_clusters_locals)
 print(len(reduced_clusters_locals))
+
+# Convert reduced_clusters_locals into a DataFrame
+df = pd.DataFrame({'Cluster_ID': reduced_clusters_id, 'Galaxy_IDs': reduced_clusters_locals})
+
+# Save to CSV
+df.to_csv('reduced_clusters_locals_main.csv', index=False)
