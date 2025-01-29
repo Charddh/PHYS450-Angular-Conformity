@@ -10,86 +10,76 @@ from astropy.table import Table
 import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 
-max_z = 0.1 #maximum redshift of galaxies being looked for
-min_n = 30 #minimum companions according to cluster catalogue
+max_z = 0.1
+min_n = 30
 
-# Load cluster data from a FITS file, storing in a Table and NumPy array
-with fits.open('catCluster-SPIDERS_RASS_CLUS-v3.0.fits') as cluster:
-    cluster_table = Table(cluster[1].data)
-    cluster_data = np.array(list(cluster[1].data))
+# Open the FITS file and retrieve the data from the second HDU (Header Data Unit)
+cluster_data = fits.open("catCluster-SPIDERS_RASS_CLUS-v3.0.fits")[1].data
+# Convert the structured array to a dictionary with byte-swapping and endian conversion for each column
+cluster_df = pd.DataFrame({
+    name: cluster_data[name].byteswap().newbyteorder()  # Apply byte-swapping and endian conversion to each field
+    for name in cluster_data.dtype.names  # Iterate over each field name in the structured array
+})
 
-# Load BCG data from a FITS file, storing in a Table and NumPy array
-with fits.open('SpidersXclusterBCGs-v2.0.fits') as bcg:
-    bcg_table = Table(bcg[1].data)
-    bcg_data = np.array(list(bcg[1].data))
+gz_df = pd.DataFrame(fits.open("GZDR1SFRMASS.fits")[1].data)
+bcg_df = pd.DataFrame(fits.open("SpidersXclusterBCGs-v2.0.fits")[1].data)
 
-# Load Galaxy Zoo data from a FITS file, storing in a Table and NumPy array
-with fits.open('GZDR1SFRMASS.fits') as galzoo:
-    galzoo_table = Table(galzoo[1].data)
-    galzoo_data = np.array(Table(galzoo[1].data))
-# Convert the Table to a pandas DataFrame
-galzoo_df = galzoo_table.to_pandas()
-# Convert to a 2D NumPy array
-galzoo_data = galzoo_df.to_numpy()
+print(gz_df.columns)
+#print(bcg_df.columns)
 
-# Apply filters to select clusters based on redshift and minimum companion count
-mask = (cluster_data[:, 12].astype(float) < max_z) & (cluster_data[:, 18].astype(float) > min_n)
-cluster_id = cluster_data[mask, 0] # Extract filtered cluster IDs
-cluster_ra = cluster_data[mask, 3] # Extract Right Ascension of filtered clusters
-cluster_dec = cluster_data[mask, 4] # Extract Declination of filtered clusters
-cluster_z = cluster_data[mask, 12] # Extract redshift of filtered clusters
-cluster_n = cluster_data[mask, 18] # Extract companion count of filtered clusters
+cluster_df2 = cluster_df[(cluster_df['SCREEN_CLUZSPEC'] < max_z) & (cluster_df['SCREEN_NMEMBERS_W'] > min_n)]
 
-# Filter BCG data to match selected clusters
-mask = np.isin(bcg_data[:, 0], cluster_id)
-reduced_clusters_id = bcg_data[mask, 0].astype(float) # Filtered BCG cluster IDs
-reduced_clusters_z = bcg_data[mask, 1].astype(float) # Filtered BCG redshifts
-reduced_clusters_ra = bcg_data[mask, 2].astype(float) # Filtered BCG Right Ascensions
-reduced_clusters_dec = bcg_data[mask, 3].astype(float) # Filtered BCG Declinations
+# Extract relevant columns from the filtered clusters DataFrame
+cluster_id = cluster_df2['CLUS_ID'].values
+cluster_ra = cluster_df2['RA'].values
+cluster_dec = cluster_df2['DEC'].values
+cluster_z = cluster_df2['SCREEN_CLUZSPEC'].values
 
-# Extract data from Galaxy Zoo catalog
-gz_id = galzoo_data[:, 0] # Galaxy IDs
-gz_ra = galzoo_data[:, 13] # Right Ascension of galaxies
-gz_dec = galzoo_data[:, 14] # Declination of galaxies
-gz_z = galzoo_data[:, 18] # Redshift of galaxies
+# Extract relevant columns from the BCG DataFrame (match by CLUS_ID)
+bcg_df2 = bcg_df[bcg_df['CLUS_ID'].isin(cluster_id)]
+reduced_clusters_id = bcg_df2['CLUS_ID'].values
+reduced_clusters_ra = bcg_df2['RA_BCG'].values
+reduced_clusters_dec = bcg_df2['DEC_BCG'].values
+reduced_clusters_z = bcg_df2['CLUZSPEC'].values
 
+# Extract relevant columns from the Galaxy Zoo DataFrame
+gz_id = gz_df['SPECOBJID_1'].values
+gz_ra = gz_df['RA_1'].values
+gz_dec = gz_df['DEC_1'].values
+gz_z = gz_df['Z'].values
 
+# Calculate the angular separation and redshift difference using vectorized operations
+ra_diff = reduced_clusters_ra[:, None] - gz_ra  # Broadcast the RA difference calculation
+dec_diff = reduced_clusters_dec[:, None] - gz_dec  # Broadcast the Dec difference calculation
+z_diff = np.abs(reduced_clusters_z[:, None] - gz_z)  # Compute absolute redshift difference
 
-"""for i in range(len(reduced_clusters_id)):
-    dec_diff = reduced_clusters_dec[i] - gz_dec
-    ra_diff = reduced_clusters_ra[i] - gz_ra
-    z_diff = reduced_clusters_z[i] - gz_z
-    if (np.sqrt((ra_diff ** 2) * (np.cos(reduced_clusters_dec[j]) ** 2) + ((reduced_clusters_dec[j] - gz_dec[i]) ** 2)) < ((1000 / 3600) * cosmo.arcsec_per_kpc_proper(float(reduced_clusters_z[j])).value)):# and ((reduced_clusters_z[j] - 0.01) < gz_z[i] < (reduced_clusters_z[j] + 0.01)):
-            templist.append(gz_id[i])
-    reduced_clusters_locals.append(templist)
+# Compute the angular separation using the Haversine formula and the proper scaling
+angular_separation = np.sqrt((ra_diff ** 2) * (np.cos(np.radians(reduced_clusters_dec[:, None])) ** 2) + dec_diff ** 2)
 
+# Convert the angular separation to physical separation in kpc
+phys_sep_kpc = (1000 / 3600) * cosmo.arcsec_per_kpc_proper(reduced_clusters_z[:, None]).value
 
-for i in range(len())
+# Apply the selection criteria (angular separation and redshift difference)
+selected_galaxies_mask = (angular_separation < phys_sep_kpc) & (z_diff < 0.01)
 
-print(dec_diff)
-print(ra_diff)
-print(z_diff)
-print(min(abs(dec_diff)))
-print(min(abs(ra_diff)))
-print(min(abs(z_diff)))"""
+# Create a list of Galaxy IDs for each cluster
+reduced_clusters_locals_id = [gz_id[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
+reduced_clusters_locals_ra = [gz_ra[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
+reduced_clusters_locals_dec = [gz_dec[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
+reduced_clusters_locals_z = [gz_z[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
 
-reduced_clusters_locals = []
+print([type(item) for item in reduced_clusters_ra])
 
-for j in range(len(reduced_clusters_id)):
-    gz_id_templist = []
-    for i in range(len(gz_id)):
-        z_diff = abs(reduced_clusters_z[j] - gz_z[i])
-        if (np.sqrt(((reduced_clusters_ra[j] - gz_ra[i]) ** 2) * (np.cos(reduced_clusters_dec[j]) ** 2) + ((reduced_clusters_dec[j] - gz_dec[i]) ** 2)) < ((1000 / 3600) * cosmo.arcsec_per_kpc_proper(float(reduced_clusters_z[j])).value)) and z_diff < 0.01:
-            gz_id_templist.append(gz_id[i])
-    reduced_clusters_locals.append(gz_id_templist)
+gz_id_list = [item for sublist in reduced_clusters_locals_id for item in sublist]
+gz_ra_list = [item for sublist in reduced_clusters_locals_ra for item in sublist]
+gz_dec_list = [item for sublist in reduced_clusters_locals_dec for item in sublist]
+gz_z_list = [item for sublist in reduced_clusters_locals_z for item in sublist]
 
-
-print(len(reduced_clusters_id))
-print(reduced_clusters_locals)
-print(len(reduced_clusters_locals))
-
-# Convert reduced_clusters_locals into a DataFrame
-df = pd.DataFrame({'Cluster_ID': reduced_clusters_id, 'Galaxy_IDs': reduced_clusters_locals})
+df = pd.DataFrame({'BCG_ID': reduced_clusters_id, 'BCG_RA': reduced_clusters_ra, 'BCG_DEC': reduced_clusters_dec, 'BCG_Z': reduced_clusters_z, 'Galaxy_IDs': reduced_clusters_locals_id})
+df_gz = pd.DataFrame({'GZ_ID': gz_id_list,'GZ_RA': gz_ra_list,'GZ_DEC': gz_dec_list,'GZ_Z': gz_z_list})
+df_bcg = pd.DataFrame({'BCG_ID': reduced_clusters_id,'BCG_RA': reduced_clusters_ra,'BCG_DEC': reduced_clusters_dec,'BCG_Z': reduced_clusters_z})
 
 # Save to CSV
-df.to_csv('reduced_clusters_locals_main.csv', index=False)
+df.to_csv('reduced_clusters_locals_main2.csv', index=False)
+df_gz.to_csv('gz.csv', index=False)
+df_bcg.to_csv('bcg.csv', index=False)
