@@ -77,7 +77,7 @@ gz_z_list = [item for sublist in reduced_clusters_locals_z for item in sublist]
 
 df = pd.DataFrame({'BCG_ID': reduced_clusters_id, 'BCG_RA': reduced_clusters_ra, 'BCG_DEC': reduced_clusters_dec, 'BCG_Z': reduced_clusters_z, 'Galaxy_IDs': reduced_clusters_locals_id})
 df_gz = pd.DataFrame({'GZ_ID': gz_id_list,'GZ_RA': gz_ra_list,'GZ_DEC': gz_dec_list,'GZ_Z': gz_z_list})
-df_bcg = pd.DataFrame({'BCG_ID': reduced_clusters_id,'BCG_RA': reduced_clusters_ra,'BCG_DEC': reduced_clusters_dec,'BCG_Z': reduced_clusters_z, 'BCG_PA': reduced_clusters_pa})
+df_bcg = pd.DataFrame({'BCG_ID': reduced_clusters_id,'BCG_RA': reduced_clusters_ra,'BCG_DEC': reduced_clusters_dec,'BCG_Z': reduced_clusters_z, 'BCG_SDSS_PA': reduced_clusters_pa})
 
 # Save to CSV
 df.to_csv('reduced_clusters_locals_main2.csv', index=False)
