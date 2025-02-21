@@ -11,9 +11,9 @@ import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 
 max_z = 0.12
-min_n = 38
-bin_size = 30 #Size in degrees of the bins
-min_satellite_mass = 10
+min_n = 25
+bin_size = 20 #Size in degrees of the bins
+min_satellite_mass = 11
 
 # Open the FITS file and retrieve the data from the second HDU (Header Data Unit)
 cluster_data = fits.open("catCluster-SPIDERS_RASS_CLUS-v3.0.fits")[1].data
@@ -109,22 +109,20 @@ def calculate_theta(bcg_ra, bcg_dec, gal_ra, gal_dec):
     delta_ra = np.radians(bcg_ra - gal_ra)*np.cos(avg_dec)
     delta_dec = np.radians(bcg_dec - gal_dec)
     theta_raw = np.arctan2(delta_ra, delta_dec)
-    theta_clockwise = (2*np.pi - (theta_raw + np.pi)) % (2 * np.pi)
+    theta_clockwise = (-theta_raw) % (2 * np.pi)
     return np.degrees(theta_clockwise)
 
 merged_df['theta'] = merged_df.apply(lambda row: calculate_theta(row['bcg_ra'], row['bcg_dec'], row['sat_ra'], row['sat_dec']), axis=1)
 
-merged_df['sat_majoraxis_angle'] = merged_df.apply(lambda row: [(row['corrected_pa'] - theta) % 360 for theta in row['theta']], axis=1)
+merged_df['sat_majoraxis_angle'] = merged_df.apply(lambda row: [(theta - row['corrected_pa']) % 360 for theta in row['theta']], axis=1)
 
 satellite_df = pd.DataFrame({
     "clus_id": merged_df["clus_id"],
     "bcg_ra": merged_df["bcg_ra"],
     "bcg_dec": merged_df["bcg_dec"],
-    "corrected_pa": merged_df["corrected_pa"],
     "sat_ra": merged_df["sat_ra"],
     "sat_dec": merged_df["sat_dec"],
-    "theta": merged_df["theta"],
-    "sat_majoraxis_angle": merged_df["sat_majoraxis_angle"]})
+    "theta": merged_df["theta"]})
 satellite_df.to_csv('satellite.csv', index=False)
 
 merged_df['sat_elliptical'] = merged_df['sat_elliptical'].apply(lambda x: [1 if value >= 0.5 else 0 for value in x])
@@ -180,42 +178,20 @@ spiral_hist, _ = np.histogram(spirals, bins=bins)
 elliptical_hist, _ = np.histogram(ellipticals, bins=bins)
 unknown_hist, _ = np.histogram(unknowns, bins=bins)
 
-fraction = np.where(spiral_hist > 0, elliptical_hist / spiral_hist, np.nan)
-
 bin_centres = (bins[:-1] + bins[1:]) / 2 #Bin midpoints
 
-# Create figure and subplots
-fig, ax = plt.subplots(2, 1, figsize=(10, 12), sharex=True)  
+plt.figure(figsize=(10, 6))
 
-# First subplot: Galaxy counts
-ax[0].plot(bin_centres, spiral_hist, label="Spirals", color="blue")
-ax[0].plot(bin_centres, elliptical_hist, label="Ellipticals", color="red")
-ax[0].plot(bin_centres, unknown_hist, label="Unknowns", color="green")
-
-ax[0].set_ylabel("Number of Galaxies")
-ax[0].set_title("Galaxy Angle Distribution")
-ax[0].legend()
-ax[0].grid(axis="y", linestyle="--", alpha=0.7)
-
-# Second subplot: Elliptical / Spiral fraction
-ax[1].plot(bin_centres, fraction, marker='o', linestyle='-', color="purple", label="Elliptical / Spiral Fraction")
-
-ax[1].set_xlabel("Angle (degrees)")
-ax[1].set_ylabel("Fraction of Ellipticals to Spirals")
-ax[1].set_title("Elliptical-to-Spiral Ratio as a Function of Angle")
-ax[1].set_ylim(0, np.nanmax(fraction) * 1.2)  # Adjust y-axis limit for clarity
-ax[1].legend()
-ax[1].grid(axis="y", linestyle="--", alpha=0.7)
-
-# Common x-axis
+plt.plot(bin_centres, spiral_hist, label="Spirals", color="blue")
+plt.plot(bin_centres, elliptical_hist, label="Ellipticals", color="red")
+plt.plot(bin_centres, unknown_hist, label="Unknowns", color="green")
+plt.xlabel("Angle (degrees)")
+plt.ylabel("Number of Galaxies")
+plt.title(f"Galaxy Angle Distribution")
 plt.xlim([0, 360])
-plt.xticks(bins)  # Show bin edges
+plt.text(0.7, 0.9, f"{bin_size}° Bins\n{min_n} Minimum members\nz < {max_z}", ha="center", va="center", transform=plt.gca().transAxes, fontsize = 12, fontweight = "normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+plt.xticks(bins)  #Show bin edges on x-axis
+plt.legend()
+plt.grid(axis="y", linestyle="--", alpha=0.7)
 
-# Add text box to second subplot
-ax[1].text(0.7, 0.9, f"{bin_size}° Bins\n{min_n} Minimum Members\nz < {max_z}\nMinimum Satellite Mass {min_satellite_mass}", 
-           ha="center", va="center", transform=ax[1].transAxes, 
-           fontsize=12, fontweight="normal", 
-           bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
-
-plt.tight_layout()  # Adjust layout to prevent overlapping elements
 plt.show()

@@ -1,1 +1,1 @@
-GAL_sdss_i_modSX_C2_PA
+[(theta - row['corrected_pa']) % 360 
