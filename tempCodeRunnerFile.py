@@ -1,1 +1,1 @@
-[(theta - row['corrected_pa']) % 360 
+ 20
