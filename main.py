@@ -1,52 +1,52 @@
-import numpy as np #this is a module that has array functionality 
-import matplotlib.pyplot as plt #graph plotting module
-from astropy.cosmology import FlatLambdaCDM# this is the cosmology module from astropy
+import numpy as np
+import matplotlib.pyplot as plt
+from astropy.cosmology import FlatLambdaCDM
 import scipy.optimize as opt
 from astropy.io import fits
 import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
-from functions import sine_function, chi_squared, assign_morph, calculate_theta
+from functions import sine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
 
 max_z = 0.125 #Maximum redshift in the sample.
-min_n = 20 #Minimum number of BCG satellite galaxies.
-bin_size = 30 #Size in degrees of the bins.
-min_satellite_mass = 10 #Minimum satellite galaxy mass
+min_n = 10 #Minimum number of BCG satellite galaxies.
+bin_size = 40 #Size in degrees of the bins.
+sfr_bin_size = 40 #Size in degrees of the bins for the SFR plot.
+min_satellite_mass = 10 #Minimum satellite galaxy mass.
 classification_threshold = 1 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
 sfr_threshold = -11.25 #Threshold of specific star formation rate considered as the boundary between active and quiescent galaxies.
-debiased = 1 #If 1, will use debiased classifications. Else, will use raw classifications.
+debiased = 0 #If 1, will use debiased classifications. Else, will use raw classifications.
 phys_sep = 1000 #Maximum physical separation in kpc between BCG and satellite galaxies.
 max_vel = 3000 #Maximum velocity difference in km/s between BCG and satellite galaxies.
 signal_to_noise = 3 #Minimum signal-to-noise ratio for galaxy spectra.
 
-# Open the FITS file and retrieve the data from the second HDU (Header Data Unit)
+#Open the cluster FITS file and retrieve the data from the second HDU (Header Data Unit).
 cluster_data = fits.open("catCluster-SPIDERS_RASS_CLUS-v3.0.fits")[1].data
-# Convert the structured array to a dictionary with byte-swapping and endian conversion for each column
+#Convert the structured array to a dictionary with byte-swapping and endian conversion for each column.
 cluster_df = pd.DataFrame({
-    name: cluster_data[name].byteswap().newbyteorder()  # Apply byte-swapping and endian conversion to each field
-    for name in cluster_data.dtype.names  # Iterate over each field name in the structured array
+    name: cluster_data[name].byteswap().newbyteorder()  #Apply byte-swapping and endian conversion to each field.
+    for name in cluster_data.dtype.names  #Iterate over each field name in the structured array.
 })
 
+#Import the galaxy zoo and bcg datasets.
 gz_df = pd.DataFrame(fits.open("GZDR1SFRMASS.fits")[1].data)
 bcg_df = pd.DataFrame(fits.open("SpidersXclusterBCGs-v2.0.fits")[1].data)
-
 cluster_df2 = cluster_df[(cluster_df['SCREEN_CLUZSPEC'] < max_z) & (cluster_df['SCREEN_NMEMBERS_W'] > min_n)]
 
-# Extract relevant columns from the filtered clusters DataFrame
+#Extract relevant columns from the filtered clusters DataFrame.
 cluster_id = cluster_df2['CLUS_ID'].values
 cluster_ra = cluster_df2['RA'].values
 cluster_dec = cluster_df2['DEC'].values
 cluster_z = cluster_df2['SCREEN_CLUZSPEC'].values
 
-# Extract relevant columns from the BCG DataFrame (match by CLUS_ID)
+#Extract relevant columns from the bcg dataframe.
 bcg_df2 = bcg_df[bcg_df['CLUS_ID'].isin(cluster_id)]
-
 reduced_clusters_id = bcg_df2['CLUS_ID'].values
 reduced_clusters_ra = bcg_df2['RA_BCG'].values
 reduced_clusters_dec = bcg_df2['DEC_BCG'].values
 reduced_clusters_z = bcg_df2['CLUZSPEC'].values
 reduced_clusters_pa = bcg_df2['GAL_sdss_i_modSX_C2_PA'].values
 
-# Extract relevant columns from the Galaxy Zoo DataFrame
+#Extract relevant columns from the galaxy zoo dataframe.
 gz_id = gz_df['SPECOBJID_1'].values
 gz_ra = gz_df['RA_1'].values
 gz_dec = gz_df['DEC_1'].values
@@ -57,6 +57,7 @@ gz_sfr16 = gz_df['SPECSFR_TOT_P16'].values
 gz_sfr84 = gz_df['SPECSFR_TOT_P84'].values
 gz_s_n = gz_df['SN_MEDIAN'].values
 
+#Switch to choose either the debiased or undebiased values for elliptical / spiral probability.
 if debiased == 1:
     gz_elliptical = gz_df['P_EL_DEBIASED'].values
     gz_spiral = gz_df['P_CS_DEBIASED'].values
@@ -64,21 +65,21 @@ else:
     gz_elliptical = gz_df['P_EL'].values
     gz_spiral = gz_df['P_CS'].values
 
-# Calculate the angular separation and redshift difference using vectorized operations
-ra_diff = reduced_clusters_ra[:, None] - gz_ra  # Broadcast the RA difference calculation
-dec_diff = reduced_clusters_dec[:, None] - gz_dec  # Broadcast the Dec difference calculation
-z_diff = np.abs(reduced_clusters_z[:, None] - gz_z)  # Compute absolute redshift difference
+#Calculate the angular separation and redshift difference.
+ra_diff = reduced_clusters_ra[:, None] - gz_ra  #Broadcast the RA difference calculation.
+dec_diff = reduced_clusters_dec[:, None] - gz_dec  #Broadcast the Dec difference calculation.
+z_diff = np.abs(reduced_clusters_z[:, None] - gz_z)  #Compute absolute redshift difference.
 
-# Compute the angular separation using the Haversine formula and the proper scaling
+#Compute the angular separation using the Haversine formula and the proper scaling.
 angular_separation = np.sqrt((ra_diff ** 2) * (np.cos(np.radians(reduced_clusters_dec[:, None])) ** 2) + dec_diff ** 2)
 
 #Number of degrees corresponding to 1 kpc at the redshift of each cluster.
 degrees_per_mpc = (1 / 3600) * cosmo.arcsec_per_kpc_proper(reduced_clusters_z[:, None]).value
 
-# Apply the selection criteria (angular separation and redshift difference)
+#Apply the selection criteria (angular separation and redshift difference).
 selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_mpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) * (gz_s_n > signal_to_noise)
 
-# Create a list of Galaxy IDs for each cluster
+#Create a list of Galaxy data for each cluster.
 reduced_clusters_locals_id = [gz_id[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
 reduced_clusters_locals_ra = [gz_ra[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
 reduced_clusters_locals_dec = [gz_dec[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
@@ -90,23 +91,19 @@ reduced_clusters_locals_sfr = [gz_sfr[selected_galaxies_mask[i]] for i in range(
 reduced_clusters_locals_sfr16 = [gz_sfr16[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
 reduced_clusters_locals_sfr84 = [gz_sfr84[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
 
-gz_id_list = [item for sublist in reduced_clusters_locals_id for item in sublist]
-gz_ra_list = [item for sublist in reduced_clusters_locals_ra for item in sublist]
-gz_dec_list = [item for sublist in reduced_clusters_locals_dec for item in sublist]
-gz_z_list = [item for sublist in reduced_clusters_locals_z for item in sublist]
-
-df_gz = pd.DataFrame({'gz_id': gz_id_list,'gz_ra': gz_ra_list,'gz_dec': gz_dec_list,'gz_z': gz_z_list})
+#Create a dataframe containing the bcg data with corresponding satellite data.
 df_bcg = pd.DataFrame({'bcg_id': reduced_clusters_id,'bcg_ra': reduced_clusters_ra,'bcg_dec': reduced_clusters_dec,'bcg_z': reduced_clusters_z, 'bcg_sdss_pa': reduced_clusters_pa, 'sat_id': reduced_clusters_locals_id, 'sat_ra': reduced_clusters_locals_ra, 'sat_dec': reduced_clusters_locals_dec, 'sat_elliptical': reduced_clusters_locals_elliptical, 'sat_spiral': reduced_clusters_locals_spiral, 'sat_mass': reduced_clusters_locals_mass, 'sat_sfr': reduced_clusters_locals_sfr, 'sat_sfr16': reduced_clusters_locals_sfr16, 'sat_sfr84': reduced_clusters_locals_sfr84})
 
+#Import the 
 angle_df = pd.read_csv('BCGAngleOffset.csv')
 angle_df["clus_id"] = angle_df["clus_id"].str.strip()
 df_bcg["bcg_id"] = df_bcg["bcg_id"].str.strip()
+#print("df_bcg", df_bcg["bcg_id"][~df_bcg["bcg_id"].isin(angle_df["clus_id"])])
 
 merged_df = pd.merge(angle_df, df_bcg, left_on='clus_id', right_on='bcg_id', how = 'inner').drop(columns=['bcg_id'])
 merged_df['corrected_pa'] = ((((90 - merged_df['spa']) % 360) - merged_df['bcg_sdss_pa']) % 360)
 
 merged_df['theta'] = merged_df.apply(lambda row: calculate_theta(row['bcg_ra'], row['bcg_dec'], row['sat_ra'], row['sat_dec']), axis=1)
-
 merged_df['sat_majoraxis_angle'] = merged_df.apply(lambda row: [((row['corrected_pa'] - theta) % 360) % 180 for theta in row['theta']], axis=1)
 
 satellite_df = pd.DataFrame({
@@ -143,10 +140,7 @@ sfr16_list = np.concatenate(merged_df['sat_sfr16'].values)
 sfr84_list = np.concatenate(merged_df['sat_sfr84'].values)
 sfr_error = (sfr84_list - sfr16_list) / 2
 
-print(sfr_list.dtype)
-print(np.isnan(sfr_list).sum())  # Count NaNs
-print((sfr_list == np.inf).sum())  # Count infinities
-print((sfr_list == -np.inf).sum())  # Count negative infinities
+print(f"Number of satellites in sample: {len(sat_majoraxis_list)}")
 
 sat_type_list = [
     "e" if elliptical == 1 and spiral == 0 else
@@ -182,6 +176,7 @@ df_angles = pd.concat([spirals, ellipticals, unknowns], axis=1, keys=["spirals",
 df.to_csv('angles.csv', index=False)
 
 bins = np.arange(0, 181, bin_size)
+sfr_bins = np.arange(0, 181, sfr_bin_size)
 
 spiral_hist, _ = np.histogram(spirals, bins=bins)
 elliptical_hist, _ = np.histogram(ellipticals, bins=bins)
@@ -189,11 +184,14 @@ unknown_hist, _ = np.histogram(unknowns, bins=bins)
 
 sfr_forming_hist, _ = np.histogram(sfr_forming, bins=bins)
 sfr_quiescent_hist, _ = np.histogram(sfr_quiescent, bins=bins)
-sfr_unknown_hist, _ = np.histogram(sfr_unknowns, bins=bins)
-sfr_hist, _ = np.histogram(sfr_list, bins=bins)
 
-print("list", sfr_list)
-print("hist", sfr_hist)
+sfr_unknown_hist, _ = np.histogram(sfr_unknowns, bins=bins)
+sfr_bin_counts, sfr_bin_edges = np.histogram(sat_majoraxis_list, sfr_bins)
+sfr_binned, _ = np.histogram(sat_majoraxis_list, sfr_bins, weights = sfr_list)
+sfr_mean = sfr_binned / sfr_bin_counts
+sfr_err_binned, _ = np.histogram(sat_majoraxis_list, sfr_bins, weights = sfr_error)
+sfr_error_mean = sfr_err_binned / sfr_bin_counts
+sfr_bin_centres = (sfr_bin_edges[:-1] + sfr_bin_edges[1:]) /2
 
 # Poisson errors for counts
 spiral_errors = np.sqrt(spiral_hist)
@@ -202,34 +200,40 @@ unknown_errors = np.sqrt(unknown_hist)
 sfr_forming_errors = np.sqrt(sfr_forming_hist)
 sfr_quiescent_errors = np.sqrt(sfr_quiescent_hist)
 sfr_unknown_errors = np.sqrt(sfr_unknown_hist)
-sfr_err = np.sqrt(sfr_hist + 1e-5)
 
 # Compute fraction and errors
 fraction = np.where(spiral_hist + elliptical_hist > 0, (elliptical_hist / (spiral_hist + elliptical_hist)), 0)
 fraction_errors = np.where(elliptical_hist + spiral_hist > 0, np.sqrt(elliptical_hist) / (elliptical_hist + spiral_hist), np.nan)
 sfr_fraction = np.where(sfr_forming_hist + sfr_quiescent_hist > 0, (sfr_quiescent_hist / (sfr_forming_hist + sfr_quiescent_hist)), 0)
 sfr_fraction_errors = np.where(sfr_quiescent_hist + sfr_forming_hist > 0, np.sqrt(sfr_quiescent_hist) / (sfr_quiescent_hist +  sfr_forming_hist), np.nan)
-bin_centres = (bins[:-1] + bins[1:]) / 2 #Bin midpoints
+bin_centres = (bins[:-1] + bins[1:]) / 2
 
-print("spriral", spiral_hist)
-print("elliptical", elliptical_hist)
-print("fraction", fraction)   
-
-popt_avgsfr, pcov_avgsfr = opt.curve_fit(sine_function, bin_centres, sfr_hist, sigma = sfr_err, p0 = [1, -11], absolute_sigma = True)
+popt_avgsfr, pcov_avgsfr = opt.curve_fit(sine_function, sfr_bin_centres, sfr_mean, sigma = sfr_error_mean, p0 = [1, -11], absolute_sigma = True)
 popt_sfr, pcov_sfr = opt.curve_fit(sine_function, sat_majoraxis_list, sfr_list, sigma = sfr_error, p0 = [1, -11], absolute_sigma = True)
 popt_frac, pcov_frac = opt.curve_fit(sine_function, bin_centres, fraction, sigma = fraction_errors, p0 = [0.1, 0], absolute_sigma = True)
+popt_frac_line, pcov_frac_line = opt.curve_fit(horizontal_line, bin_centres, fraction, sigma = fraction_errors, absolute_sigma = True)
 popt_sfr_frac, pcov_sfr_frac = opt.curve_fit(sine_function, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, p0 = [0.1, 0], absolute_sigma = True)
+popt_sfr_frac_line, pcov_sfr_frac_line = opt.curve_fit(horizontal_line, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, absolute_sigma = True)
+
 trialX = np.linspace(0, 180, 1000)
 trialY_avgsfr = sine_function(trialX, *popt_avgsfr)
 trialY_frac = sine_function(trialX, *popt_frac)
+trialY_frac_line = horizontal_line(trialX, *popt_frac_line)
 trialY_sfr = sine_function(trialX, *popt_sfr)
 trialY_sfr_frac = sine_function(trialX, *popt_sfr_frac)
+trialY_sfr_frac_line = horizontal_line(trialX, *popt_sfr_frac_line)
 
-chi2_frac = chi_squared(bin_centres, fraction, fraction_errors, popt_frac, sine_function)
-chi2_sfr_frac = chi_squared(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac, sine_function)
+chi2_red_frac = chi2_red(bin_centres, fraction, fraction_errors, popt_frac, sine_function)
+chi2_red_frac_line = chi2_red(bin_centres, fraction, fraction_errors, popt_frac_line, horizontal_line)
+chi2_red_sfr_frac = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac, sine_function)
+chi2_red_sfr_frac_line = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac_line, horizontal_line)
 
-print("Chi-squared value for elliptical fraction:", chi2_frac)
-print("Chi-squared value for quiescent fraction:", chi2_sfr_frac)
+print("Elliptical fraction")
+print(f"Sinusoid reduced chi squared: {chi2_red_frac}, a = {popt_frac[0]} $\\pm$ {np.sqrt(pcov_frac[0,0])}, b = {popt_frac[1]} $\\pm$ {np.sqrt(pcov_frac[1,1])}")
+print(f"Horizontal line reduced chi squared: {chi2_red_frac_line}, a = {popt_frac_line[0]} $\\pm$ {np.sqrt(pcov_frac_line[0,0])}")
+print("Quiescent fraction")
+print(f"Sinusoid reduced chi squared: {chi2_red_sfr_frac}, a = {popt_sfr_frac[0]} $\\pm$ {np.sqrt(pcov_sfr_frac[0,0])}, b = {popt_sfr_frac[1]} $\\pm$ {np.sqrt(pcov_sfr_frac[1,1])}")
+print(f"Horizontal line reduced chi squared: {chi2_red_sfr_frac_line}, a = {popt_sfr_frac_line[0]} $\\pm$ {np.sqrt(pcov_sfr_frac_line[0,0])}")
 
 # Create figure and subplots
 fig, ax = plt.subplots(2, 2, figsize=(16, 12), constrained_layout=True)
@@ -248,6 +252,7 @@ ax[0,1].errorbar(bin_centres, fraction, yerr=fraction_errors, marker='o', linest
 ax[0,1].set_ylabel("Fraction of Ellipticals")
 ax[0,1].set_title("Elliptical Fraction as a Function of Angle")
 ax[0,1].set_ylim(np.nanmax(fraction) * 0.8, np.nanmax(fraction) * 1.2)
+ax[0,1].plot(trialX, trialY_frac_line, 'g-', label = 'Horiztontal Line Fit') 
 ax[0,1].plot(trialX, trialY_frac, 'r-', label = 'Sinusoidal Fit') 
 ax[0,1].legend()
 ax[0,1].grid(axis="y", linestyle="--", alpha=0.7)
@@ -271,6 +276,7 @@ ax[1,1].set_xlabel("Angle (degrees)")
 ax[1,1].set_ylabel("Fraction of Quiescent Galaxies")
 ax[1,1].set_title("Quiescent Fraction as a Function of Angle")
 ax[1,1].set_ylim(np.nanmax(sfr_fraction) * 0.8, np.nanmax(sfr_fraction) * 1.2)
+ax[1,1].plot(trialX, trialY_sfr_frac_line, 'g-', label = 'Horiztontal Line Fit') 
 ax[1,1].plot(trialX, trialY_sfr_frac, 'r-', label = 'Sinusoidal Fit') 
 ax[1,1].legend()
 ax[1,1].grid(axis="y", linestyle="--", alpha=0.7)
@@ -282,26 +288,23 @@ ax[1,1].text(0.7, 0.7, f"{bin_size}° Bins\nMinimum Members: {min_n}\nz < {max_z
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
 plt.show()
 
-fig, ax = plt.subplots(2, 1, figsize=(16, 12), constrained_layout=True)
+"""fig, ax = plt.subplots(2, 1, figsize=(16, 12), constrained_layout=True)
 
 ax[0].errorbar(sat_majoraxis_list, sfr_list, yerr=sfr_error, label="SFR", color="blue", ecolor='red', capsize=2, marker = 'o', markersize = 3, linewidth = 0.5, linestyle = 'None')
 ax[0].plot(trialX, trialY_sfr, 'g-', label = 'Sinusoidal Fit') 
-ax[0].set_xlabel("Angle (degrees)")
 ax[0].set_ylabel("SSFR")
 ax[0].set_title("Separate Galaxy Angle Distribution")
 ax[0].legend()
 ax[0].grid(axis="y", linestyle="--", alpha=0.7)
 
-ax[1].errorbar(bin_centres, sfr_hist, yerr=sfr_err, label="SFR", color="blue", ecolor='red', capsize=2, marker = 'o', markersize = 3, linewidth = 0.5, linestyle = 'None')
+ax[1].errorbar(sfr_bin_centres, sfr_mean, yerr=sfr_error_mean, label="SFR", color="blue", ecolor='red', capsize=2, marker = 'o', markersize = 3, linewidth = 0.5, linestyle = 'None')
 ax[1].plot(trialX, trialY_avgsfr, 'g-', label = 'Sinusoidal Fit') 
 ax[1].set_xlabel("Angle (degrees)")
 ax[1].set_ylabel("SSFR")
-ax[1].set_title("Galaxy Angle Distribution")
+ax[1].set_title("Binned Galaxy Angle Distribution")
 ax[1].legend()
 ax[1].grid(axis="y", linestyle="--", alpha=0.7)
 
-
-
 # Show the plot
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
-plt.show()
+plt.show()"""

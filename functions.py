@@ -4,6 +4,9 @@ def sine_function(x, a, b):
     x_rad = np.deg2rad(x)
     return a * np.sin(x_rad) + b
 
+def horizontal_line(x, a):
+    return np.full_like(x, a)
+
 def chi_squared(x, y, y_error, parameters_optimised, function):
   """
   Calculate the chi-squared value for a given dataset and model.
@@ -20,6 +23,23 @@ def chi_squared(x, y, y_error, parameters_optimised, function):
   float: The chi-squared value, which quantifies the degree to which the data fits the model function. Lower values indicate a better fit.
   """
   return np.sum(((y - function(x, *parameters_optimised)) / y_error) **2)
+
+def chi2_red(x, y, y_error, parameters, function):
+  """
+  Calculate the reduced chi-squared value for a given dataset and model.
+
+  Parameters:
+  x (list / array):                     Independent variable data.
+  y (list / array):                     Dependent variable data.
+  y_error (list / array):               Dependent variable data error.
+  parameters (list / tuple):            The optimised parameters for the model function.
+  function (callable):                  The model function to fit the data. This should take 'x' as its first argument.
+                                        and accept 'parameters_optimised' as additional arguments.
+
+  Returns:
+  float: The reduced chi-squared value, which quantifies the degree to which the data fits the model function while taking into account the number of degrees of freedom in the data. Values close to 1 indicate a close fit.
+  """
+  return np.sum(((y - function(x, *parameters)) / y_error) **2) / (len(x) - len(parameters))
 
 def assign_morph(e_probs, s_probs):
     e_class = []
