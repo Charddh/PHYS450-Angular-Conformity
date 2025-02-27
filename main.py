@@ -229,11 +229,15 @@ chi2_red_sfr_frac = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, pop
 chi2_red_sfr_frac_line = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac_line, horizontal_line)
 
 print("Elliptical fraction")
-print(f"Sinusoid reduced chi squared: {chi2_red_frac}, a = {popt_frac[0]} $\\pm$ {np.sqrt(pcov_frac[0,0])}, b = {popt_frac[1]} $\\pm$ {np.sqrt(pcov_frac[1,1])}")
-print(f"Horizontal line reduced chi squared: {chi2_red_frac_line}, a = {popt_frac_line[0]} $\\pm$ {np.sqrt(pcov_frac_line[0,0])}")
+print(f"Sinusoid reduced chi squared: {chi2_red_frac:.3f}")
+print(f"y = ({popt_frac[0]:.2f} ± {np.sqrt(pcov_frac[0,0]):.2f})sin(x) + ({popt_frac[1]:.2f} ± {np.sqrt(pcov_frac[1,1]):.2f})")
+print(f"Horizontal line reduced chi squared: {chi2_red_frac_line:.3f}")
+print(f"y = {popt_frac_line[0]:.2f} ± {np.sqrt(pcov_frac_line[0,0]):.2f}")
 print("Quiescent fraction")
-print(f"Sinusoid reduced chi squared: {chi2_red_sfr_frac}, a = {popt_sfr_frac[0]} $\\pm$ {np.sqrt(pcov_sfr_frac[0,0])}, b = {popt_sfr_frac[1]} $\\pm$ {np.sqrt(pcov_sfr_frac[1,1])}")
-print(f"Horizontal line reduced chi squared: {chi2_red_sfr_frac_line}, a = {popt_sfr_frac_line[0]} $\\pm$ {np.sqrt(pcov_sfr_frac_line[0,0])}")
+print(f"Sinusoid reduced chi squared: {chi2_red_sfr_frac:.3f}")
+print(f"y = ({popt_sfr_frac[0]:.2f} ± {np.sqrt(pcov_sfr_frac[0,0]):.2f})sin(x) + ({popt_sfr_frac[1]:.2f} ± {np.sqrt(pcov_sfr_frac[1,1]):.2f})")
+print(f"Horizontal line reduced chi squared: {chi2_red_sfr_frac_line:.3f}")
+print(f"y = {popt_sfr_frac_line[0]:.2f} ± {np.sqrt(pcov_sfr_frac_line[0,0]):.2f}")
 
 # Create figure and subplots
 fig, ax = plt.subplots(2, 2, figsize=(16, 12), constrained_layout=True)
