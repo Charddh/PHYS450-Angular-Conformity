@@ -5,11 +5,11 @@ import scipy.optimize as opt
 from astropy.io import fits
 import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
-from functions import sine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
+from functions import sine_function, cosine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
 
 max_z = 0.125 #Maximum redshift in the sample.
 min_n = 10 #Minimum number of BCG satellite galaxies.
-bin_size = 40 #Size in degrees of the bins.
+bin_size = 60 #Size in degrees of the bins.
 sfr_bin_size = 40 #Size in degrees of the bins for the SFR plot.
 min_satellite_mass = 10 #Minimum satellite galaxy mass.
 classification_threshold = 1 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
@@ -210,32 +210,42 @@ bin_centres = (bins[:-1] + bins[1:]) / 2
 
 popt_avgsfr, pcov_avgsfr = opt.curve_fit(sine_function, sfr_bin_centres, sfr_mean, sigma = sfr_error_mean, p0 = [1, -11], absolute_sigma = True)
 popt_sfr, pcov_sfr = opt.curve_fit(sine_function, sat_majoraxis_list, sfr_list, sigma = sfr_error, p0 = [1, -11], absolute_sigma = True)
-popt_frac, pcov_frac = opt.curve_fit(sine_function, bin_centres, fraction, sigma = fraction_errors, p0 = [0.1, 0], absolute_sigma = True)
+popt_frac, pcov_frac = opt.curve_fit(sine_function, bin_centres, fraction, sigma = fraction_errors, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_frac_cos, pcov_frac_cos = opt.curve_fit(cosine_function, bin_centres, fraction, sigma = fraction_errors, p0 = [0.05, 0], absolute_sigma = True)
 popt_frac_line, pcov_frac_line = opt.curve_fit(horizontal_line, bin_centres, fraction, sigma = fraction_errors, absolute_sigma = True)
 popt_sfr_frac, pcov_sfr_frac = opt.curve_fit(sine_function, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, p0 = [0.1, 0], absolute_sigma = True)
+popt_sfr_frac_cos, pcov_sfr_frac_cos = opt.curve_fit(cosine_function, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, p0 = [0.05, 0.75], absolute_sigma = True)
 popt_sfr_frac_line, pcov_sfr_frac_line = opt.curve_fit(horizontal_line, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, absolute_sigma = True)
 
 trialX = np.linspace(0, 180, 1000)
 trialY_avgsfr = sine_function(trialX, *popt_avgsfr)
 trialY_frac = sine_function(trialX, *popt_frac)
+trialY_frac_cos = cosine_function(trialX, *popt_frac)
 trialY_frac_line = horizontal_line(trialX, *popt_frac_line)
 trialY_sfr = sine_function(trialX, *popt_sfr)
 trialY_sfr_frac = sine_function(trialX, *popt_sfr_frac)
+trialY_sfr_frac_cos = cosine_function(trialX, *popt_sfr_frac_cos)
 trialY_sfr_frac_line = horizontal_line(trialX, *popt_sfr_frac_line)
 
 chi2_red_frac = chi2_red(bin_centres, fraction, fraction_errors, popt_frac, sine_function)
+chi2_red_frac_cos = chi2_red(bin_centres, fraction, fraction_errors, popt_frac_cos, cosine_function)
 chi2_red_frac_line = chi2_red(bin_centres, fraction, fraction_errors, popt_frac_line, horizontal_line)
 chi2_red_sfr_frac = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac, sine_function)
+chi2_red_sfr_frac_cos = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac_cos, cosine_function)
 chi2_red_sfr_frac_line = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac_line, horizontal_line)
 
 print("Elliptical fraction")
 print(f"Sinusoid reduced chi squared: {chi2_red_frac:.3f}")
 print(f"y = ({popt_frac[0]:.2f} ± {np.sqrt(pcov_frac[0,0]):.2f})sin(x) + ({popt_frac[1]:.2f} ± {np.sqrt(pcov_frac[1,1]):.2f})")
+print(f"Cosine reduced chi squared: {chi2_red_frac_cos:.3f}")
+print(f"y = ({popt_frac_cos[0]:.2f} ± {np.sqrt(pcov_frac_cos[0,0]):.2f})cos(x) + ({popt_frac_cos[1]:.2f} ± {np.sqrt(pcov_frac_cos[1,1]):.2f})")
 print(f"Horizontal line reduced chi squared: {chi2_red_frac_line:.3f}")
 print(f"y = {popt_frac_line[0]:.2f} ± {np.sqrt(pcov_frac_line[0,0]):.2f}")
 print("Quiescent fraction")
 print(f"Sinusoid reduced chi squared: {chi2_red_sfr_frac:.3f}")
 print(f"y = ({popt_sfr_frac[0]:.2f} ± {np.sqrt(pcov_sfr_frac[0,0]):.2f})sin(x) + ({popt_sfr_frac[1]:.2f} ± {np.sqrt(pcov_sfr_frac[1,1]):.2f})")
+print(f"Cosine reduced chi squared: {chi2_red_sfr_frac_cos:.3f}")
+print(f"y = ({popt_sfr_frac_cos[0]:.2f} ± {np.sqrt(pcov_sfr_frac_cos[0,0]):.2f})cos(x) + ({popt_sfr_frac_cos[1]:.2f} ± {np.sqrt(pcov_sfr_frac_cos[1,1]):.2f})")
 print(f"Horizontal line reduced chi squared: {chi2_red_sfr_frac_line:.3f}")
 print(f"y = {popt_sfr_frac_line[0]:.2f} ± {np.sqrt(pcov_sfr_frac_line[0,0]):.2f}")
 
@@ -258,6 +268,7 @@ ax[0,1].set_title("Elliptical Fraction as a Function of Angle")
 ax[0,1].set_ylim(np.nanmax(fraction) * 0.8, np.nanmax(fraction) * 1.2)
 ax[0,1].plot(trialX, trialY_frac_line, 'g-', label = 'Horiztontal Line Fit') 
 ax[0,1].plot(trialX, trialY_frac, 'r-', label = 'Sinusoidal Fit') 
+ax[0,1].plot(trialX, trialY_frac_cos, 'b-', label = 'Cosine Fit') 
 ax[0,1].legend()
 ax[0,1].grid(axis="y", linestyle="--", alpha=0.7)
 ax[0,1].text(0.7, 0.7, f"{bin_size}° Bins\nMinimum Members: {min_n}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", 
@@ -282,6 +293,7 @@ ax[1,1].set_title("Quiescent Fraction as a Function of Angle")
 ax[1,1].set_ylim(np.nanmax(sfr_fraction) * 0.8, np.nanmax(sfr_fraction) * 1.2)
 ax[1,1].plot(trialX, trialY_sfr_frac_line, 'g-', label = 'Horiztontal Line Fit') 
 ax[1,1].plot(trialX, trialY_sfr_frac, 'r-', label = 'Sinusoidal Fit') 
+ax[1,1].plot(trialX, trialY_sfr_frac_cos, 'b-', label = 'Cosine Fit') 
 ax[1,1].legend()
 ax[1,1].grid(axis="y", linestyle="--", alpha=0.7)
 ax[1,1].text(0.7, 0.7, f"{bin_size}° Bins\nMinimum Members: {min_n}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", 
@@ -292,7 +304,7 @@ ax[1,1].text(0.7, 0.7, f"{bin_size}° Bins\nMinimum Members: {min_n}\nz < {max_z
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
 plt.show()
 
-"""fig, ax = plt.subplots(2, 1, figsize=(16, 12), constrained_layout=True)
+fig, ax = plt.subplots(2, 1, figsize=(16, 12), constrained_layout=True)
 
 ax[0].errorbar(sat_majoraxis_list, sfr_list, yerr=sfr_error, label="SFR", color="blue", ecolor='red', capsize=2, marker = 'o', markersize = 3, linewidth = 0.5, linestyle = 'None')
 ax[0].plot(trialX, trialY_sfr, 'g-', label = 'Sinusoidal Fit') 
@@ -311,4 +323,4 @@ ax[1].grid(axis="y", linestyle="--", alpha=0.7)
 
 # Show the plot
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
-plt.show()"""
+plt.show()

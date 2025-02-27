@@ -4,6 +4,10 @@ def sine_function(x, a, b):
     x_rad = np.deg2rad(x)
     return a * np.sin(x_rad) + b
 
+def cosine_function(x, a, b):
+    x_rad = np.deg2rad(x)
+    return a * np.cos(2 * x_rad) + b
+
 def horizontal_line(x, a):
     return np.full_like(x, a)
 
