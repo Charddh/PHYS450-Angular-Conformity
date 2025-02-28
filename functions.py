@@ -4,6 +4,10 @@ def sine_function(x, a, b, phase):
     x_rad = np.deg2rad(x)
     return a * np.sin(x_rad + phase) + b
 
+def sine_function_2(x, a, b):
+    x_rad = np.deg2rad(x)
+    return a * np.sin(x_rad) + b
+
 def cosine_function(x, a, b, phase):
     x_rad = np.deg2rad(x)
     return a * np.cos(x_rad + phase) + b
