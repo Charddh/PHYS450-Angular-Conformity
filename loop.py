@@ -5,7 +5,7 @@ import scipy.optimize as opt
 from astropy.io import fits
 import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
-from functions import sine_function, chi_squared, assign_morph, calculate_theta
+from functions import sine_function, sine_function_2, chi_squared, assign_morph, calculate_theta
 
 max_z = 0.125 #Maximum redshift in the sample.
 min_lx = 1e43 #Minimum x-ray luminosity for clusters.
@@ -230,12 +230,12 @@ for classification_threshold in classification_thresholds:
                         sfr_fraction = np.where(sfr_forming_hist + sfr_quiescent_hist > 0, (sfr_quiescent_hist / (sfr_forming_hist + sfr_quiescent_hist)), 0)
                         sfr_fraction_errors = np.where(sfr_quiescent_hist + sfr_forming_hist > 0, np.sqrt(sfr_quiescent_hist) / (sfr_quiescent_hist +  sfr_forming_hist), np.nan)
             
-                        popt_sfr, pcov_sfr = opt.curve_fit(sine_function, sat_majoraxis_list, sfr_list, sigma = sfr_error, p0 = [1, -11, 0], absolute_sigma = True)
-                        popt_frac, pcov_frac = opt.curve_fit(sine_function, bin_centres, fraction, sigma = fraction_errors, p0 = [0.1, 0.75, 0], absolute_sigma = True)
-                        popt_sfr_frac, pcov_sfr_frac = opt.curve_fit(sine_function, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, p0 = [0.1, 0, 0], absolute_sigma = True)
-                        trialY_frac = sine_function(trialX, *popt_frac)
-                        trialY_sfr = sine_function(trialX, *popt_sfr)
-                        trialY_sfr_frac = sine_function(trialX, *popt_sfr_frac)
+                        popt_sfr, pcov_sfr = opt.curve_fit(sine_function_2, sat_majoraxis_list, sfr_list, sigma = sfr_error, p0 = [1, -11], absolute_sigma = True)
+                        popt_frac, pcov_frac = opt.curve_fit(sine_function_2, bin_centres, fraction, sigma = fraction_errors, p0 = [0.1, 0.75], absolute_sigma = True)
+                        popt_sfr_frac, pcov_sfr_frac = opt.curve_fit(sine_function_2, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, p0 = [0.1, 0], absolute_sigma = True)
+                        trialY_frac = sine_function_2(trialX, *popt_frac)
+                        trialY_sfr = sine_function_2(trialX, *popt_sfr)
+                        trialY_sfr_frac = sine_function_2(trialX, *popt_sfr_frac)
 
                         print("popt", popt_frac[0])
                                                     

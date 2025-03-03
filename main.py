@@ -330,26 +330,20 @@ sfr_fraction_errors = np.where(sfr_quiescent_hist + sfr_forming_hist > 0, np.sqr
 popt_avgsfr, pcov_avgsfr = opt.curve_fit(sine_function, sfr_bin_centres, sfr_mean, sigma = sfr_error_mean, p0 = [1, -11, 0], absolute_sigma = True)
 popt_avgsfr_line, pcov_avgsfr_line = opt.curve_fit(horizontal_line, sfr_bin_centres, sfr_mean, sigma = sfr_error_mean, absolute_sigma = True)
 popt_sfr, pcov_sfr = opt.curve_fit(sine_function, sat_majoraxis_list, sfr_list, sigma = sfr_error, p0 = [1, -11, 0], absolute_sigma = True)
-popt_frac, pcov_frac = opt.curve_fit(sine_function, bin_centres, fraction, sigma = fraction_errors, p0 = [0.1, 0.75, 0], absolute_sigma = True)
-popt_frac_cos, pcov_frac_cos = opt.curve_fit(cosine_function, bin_centres, fraction, sigma = fraction_errors, p0 = [0.05, 0.85, 0], absolute_sigma = True)
+popt_frac, pcov_frac = opt.curve_fit(sine_function_2, bin_centres, fraction, sigma = fraction_errors, p0 = [0.1, 0.75], absolute_sigma = True)
 popt_frac_line, pcov_frac_line = opt.curve_fit(horizontal_line, bin_centres, fraction, sigma = fraction_errors, absolute_sigma = True)
-popt_sfr_frac, pcov_sfr_frac = opt.curve_fit(sine_function, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, p0 = [0.1, 0, 0], absolute_sigma = True)
-popt_sfr_frac_cos, pcov_sfr_frac_cos = opt.curve_fit(cosine_function, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, p0 = [0.05, 0.85, 0], absolute_sigma = True)
+popt_sfr_frac, pcov_sfr_frac = opt.curve_fit(sine_function_2, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, p0 = [0.1, 0], absolute_sigma = True)
 popt_sfr_frac_line, pcov_sfr_frac_line = opt.curve_fit(horizontal_line, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, absolute_sigma = True)
 trialY_avgsfr = sine_function(trialX, *popt_avgsfr)
 trialY_avgsfr_line = horizontal_line(trialX, *popt_avgsfr_line)
-trialY_frac = sine_function(trialX, *popt_frac)
-trialY_frac_cos = cosine_function(trialX, *popt_frac)
+trialY_frac = sine_function_2(trialX, *popt_frac)
 trialY_frac_line = horizontal_line(trialX, *popt_frac_line)
 trialY_sfr = sine_function(trialX, *popt_sfr)
-trialY_sfr_frac = sine_function(trialX, *popt_sfr_frac)
-trialY_sfr_frac_cos = cosine_function(trialX, *popt_sfr_frac_cos)
+trialY_sfr_frac = sine_function_2(trialX, *popt_sfr_frac)
 trialY_sfr_frac_line = horizontal_line(trialX, *popt_sfr_frac_line)
-chi2_red_frac = chi2_red(bin_centres, fraction, fraction_errors, popt_frac, sine_function)
-chi2_red_frac_cos = chi2_red(bin_centres, fraction, fraction_errors, popt_frac_cos, cosine_function)
+chi2_red_frac = chi2_red(bin_centres, fraction, fraction_errors, popt_frac, sine_function_2)
 chi2_red_frac_line = chi2_red(bin_centres, fraction, fraction_errors, popt_frac_line, horizontal_line)
-chi2_red_sfr_frac = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac, sine_function)
-chi2_red_sfr_frac_cos = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac_cos, cosine_function)
+chi2_red_sfr_frac = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac, sine_function_2)
 chi2_red_sfr_frac_line = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac_line, horizontal_line)
 sfr_chi2_red = chi2_red(sfr_bin_centres, sfr_mean, sfr_error_mean, popt_avgsfr, sine_function)
 sfr_chi2_red_line = chi2_red(sfr_bin_centres, sfr_mean, sfr_error_mean, popt_avgsfr_line, horizontal_line)
@@ -395,7 +389,7 @@ axis_sfr_chi2_red = chi2_red(axis_bin_centres, axis_sfr_mean, axis_sfr_error_mea
 axis_sfr_chi2_red_line = chi2_red(axis_bin_centres, axis_sfr_mean, axis_sfr_error_mean, axis_popt_avgsfr_line, horizontal_line)
 
 ## 0-180 plots for elliptical and quiescent fractions.
-
+"""#3 d.o.f.
 print("Elliptical fraction")
 print(f"Sinusoid reduced chi squared: {chi2_red_frac:.3f}")
 print(f"y = ({popt_frac[0]:.2f} ± {np.sqrt(pcov_frac[0,0]):.2f})sin(x + ({popt_frac[2]:.2f} ± {np.sqrt(pcov_frac[2,2]):.2f})) + ({popt_frac[1]:.2f} ± {np.sqrt(pcov_frac[1,1]):.2f})")
@@ -405,8 +399,21 @@ print("Quiescent fraction")
 print(f"Sinusoid reduced chi squared: {chi2_red_sfr_frac:.3f}")
 print(f"y = ({popt_sfr_frac[0]:.2f} ± {np.sqrt(pcov_sfr_frac[0,0]):.2f})sin(x + ({popt_sfr_frac[2]:.2f} ± {np.sqrt(pcov_sfr_frac[2,2]):.2f})) + ({popt_sfr_frac[1]:.2f} ± {np.sqrt(pcov_sfr_frac[1,1]):.2f})")
 print(f"Horizontal line reduced chi squared: {chi2_red_sfr_frac_line:.3f}")
+print(f"y = {popt_sfr_frac_line[0]:.2f} ± {np.sqrt(pcov_sfr_frac_line[0,0]):.2f}")"""
+
+#2 d.o.f.
+print("Elliptical fraction")
+print(f"Sinusoid reduced chi squared: {chi2_red_frac:.3f}")
+print(f"y = ({popt_frac[0]:.2f} ± {np.sqrt(pcov_frac[0,0]):.2f})sin(x) + ({popt_frac[1]:.2f} ± {np.sqrt(pcov_frac[1,1]):.2f})")
+print(f"Horizontal line reduced chi squared: {chi2_red_frac_line:.3f}")
+print(f"y = {popt_frac_line[0]:.2f} ± {np.sqrt(pcov_frac_line[0,0]):.2f}")
+print("Quiescent fraction")
+print(f"Sinusoid reduced chi squared: {chi2_red_sfr_frac:.3f}")
+print(f"y = ({popt_sfr_frac[0]:.2f} ± {np.sqrt(pcov_sfr_frac[0,0]):.2f})sin(x) + ({popt_sfr_frac[1]:.2f} ± {np.sqrt(pcov_sfr_frac[1,1]):.2f})")
+print(f"Horizontal line reduced chi squared: {chi2_red_sfr_frac_line:.3f}")
 print(f"y = {popt_sfr_frac_line[0]:.2f} ± {np.sqrt(pcov_sfr_frac_line[0,0]):.2f}")
-"""
+
+
 ##Separate Plots
 #Elliptical fraction
 fig, ax = plt.subplots(1, 1, figsize=(16, 12), constrained_layout=True, dpi = 150)
@@ -422,7 +429,7 @@ ax.text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimu
            ha="center", va="center", transform=ax.transAxes, 
            fontsize=8, fontweight="normal", 
            bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
-plt.show()"""
+plt.show()
     
 
 #Quiescent fraction
@@ -634,7 +641,6 @@ ax[2].text(0.1, 0.2, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMin
 
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
 plt.show()"""
-
 
 """
 ## -45-135 plots for morphology and sSFR galaxy counts, elliptical and quiescent fractions.
