@@ -11,12 +11,12 @@ max_z = 0.125 #Maximum redshift in the sample.
 min_lx = 1e43 #Minimum x-ray luminosity for clusters.
 bin_size = 45 #Size in degrees of the bins.
 sfr_bin_size = 45 #Size in degrees of the bins for the SFR plot.
-min_satellite_mass = 9.5 #Minimum satellite galaxy mass.
-classification_threshold = 1 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
+min_satellite_mass = 10.0 #Minimum satellite galaxy mass.
+classification_threshold = 0.6 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
 sfr_threshold = -11.25 #Threshold of specific star formation rate considered as the boundary between active and quiescent galaxies.
-debiased = 1 #If 1, will use debiased classifications. Else, will use raw classifications.
-phys_sep = 2000 #Maximum physical separation in kpc between BCG and satellite galaxies.
-max_vel = 5250 #Maximum velocity difference in km/s between BCG and satellite galaxies.
+debiased = 0 #If 1, will use debiased classifications. Else, will use raw classifications.
+phys_sep = 3500 #Maximum physical separation in kpc between BCG and satellite galaxies.
+max_vel = 6500 #Maximum velocity difference in km/s between BCG and satellite galaxies.
 signal_to_noise = 1 #Minimum signal-to-noise ratio for galaxy spectra.
 axis_bin = 60
 mergers = ['1_9772', '1_1626', '2_3729', '1_5811', '1_1645', '1_9618', '1_4456', '2_19468']
@@ -149,6 +149,8 @@ sfr_list = np.concatenate(merged_df['sat_sfr'].values)
 sfr16_list = np.concatenate(merged_df['sat_sfr16'].values)
 sfr84_list = np.concatenate(merged_df['sat_sfr84'].values)
 sfr_error = (sfr84_list - sfr16_list) / 2
+
+print("number of satellites in sample", len(sat_majoraxis_list))
 
 axis_sat_majoraxis_list = sat_majoraxis_list.copy()
 axis_sat_majoraxis_list = np.where(axis_sat_majoraxis_list > 135, axis_sat_majoraxis_list - 180, axis_sat_majoraxis_list)
@@ -393,7 +395,6 @@ axis_sfr_chi2_red = chi2_red(axis_bin_centres, axis_sfr_mean, axis_sfr_error_mea
 axis_sfr_chi2_red_line = chi2_red(axis_bin_centres, axis_sfr_mean, axis_sfr_error_mean, axis_popt_avgsfr_line, horizontal_line)
 
 ## 0-180 plots for elliptical and quiescent fractions.
-fig, ax = plt.subplots(2, 1, figsize=(16, 12), constrained_layout=True, dpi = 150)
 
 print("Elliptical fraction")
 print(f"Sinusoid reduced chi squared: {chi2_red_frac:.3f}")
@@ -405,7 +406,44 @@ print(f"Sinusoid reduced chi squared: {chi2_red_sfr_frac:.3f}")
 print(f"y = ({popt_sfr_frac[0]:.2f} ± {np.sqrt(pcov_sfr_frac[0,0]):.2f})sin(x + ({popt_sfr_frac[2]:.2f} ± {np.sqrt(pcov_sfr_frac[2,2]):.2f})) + ({popt_sfr_frac[1]:.2f} ± {np.sqrt(pcov_sfr_frac[1,1]):.2f})")
 print(f"Horizontal line reduced chi squared: {chi2_red_sfr_frac_line:.3f}")
 print(f"y = {popt_sfr_frac_line[0]:.2f} ± {np.sqrt(pcov_sfr_frac_line[0,0]):.2f}")
+"""
+##Separate Plots
+#Elliptical fraction
+fig, ax = plt.subplots(1, 1, figsize=(16, 12), constrained_layout=True, dpi = 150)
+ax.errorbar(bin_centres, fraction, yerr=fraction_errors, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
+ax.set_ylabel("Fraction of Ellipticals")
+ax.set_title("Elliptical Fraction as a Function of Angle")
+ax.set_ylim(np.nanmin(fraction) * 0.8, np.nanmax(fraction) * 1.2)
+ax.plot(trialX, trialY_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+ax.plot(trialX, trialY_frac, 'r-', label = 'Sinusoidal Fit') 
+ax.legend()
+ax.grid(axis="y", linestyle="--", alpha=0.7)
+ax.text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", 
+           ha="center", va="center", transform=ax.transAxes, 
+           fontsize=8, fontweight="normal", 
+           bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+plt.show()"""
+    
 
+#Quiescent fraction
+fig, ax = plt.subplots(1, 1, figsize=(16, 12), constrained_layout=True, dpi = 150)
+ax.errorbar(bin_centres, sfr_fraction, yerr=sfr_fraction_errors, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
+ax.set_xlabel("Angle (degrees)")
+ax.set_ylabel("Fraction of Quiescent Galaxies")
+ax.set_title("Quiescent Fraction as a Function of Angle")
+ax.set_ylim(np.nanmin(sfr_fraction) * 0.8, np.nanmax(sfr_fraction) * 1.2)
+ax.plot(trialX, trialY_sfr_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+ax.plot(trialX, trialY_sfr_frac, 'r-', label = 'Sinusoidal Fit') 
+ax.legend()
+ax.grid(axis="y", linestyle="--", alpha=0.7)
+ax.text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", 
+           ha="center", va="center", transform=ax.transAxes, 
+           fontsize=8, fontweight="normal", 
+           bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+plt.show()
+
+"""##Together
+fig, ax = plt.subplots(2, 1, figsize=(16, 12), constrained_layout=True, dpi = 150)
 #Elliptical fraction
 ax[0].errorbar(bin_centres, fraction, yerr=fraction_errors, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
 ax[0].set_ylabel("Fraction of Ellipticals")
@@ -436,7 +474,7 @@ ax[1].text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMin
            bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
 
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
-plt.show()
+plt.show()"""
 
 """
 ## 0-180 plots for morphology and sSFR galaxy counts, elliptical and quiescent fractions.
