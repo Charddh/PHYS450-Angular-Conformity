@@ -18,7 +18,7 @@ debiased = 1 #If 1, will use debiased classifications. Else, will use raw classi
 phys_sep = 3500 #Maximum physical separation in kpc between BCG and satellite galaxies.
 min_phys_sep = 250 #Minimum physical separation in kpc between BCG and satellite galaxies.
 max_vel = 6000 #Maximum velocity difference in km/s between BCG and satellite galaxies.
-min_vel = 2500 #Minimum velocity difference in km/s between BCG and satellite galaxies.
+min_vel = 500 #Minimum velocity difference in km/s between BCG and satellite galaxies.
 
 signal_to_noise = 1 #Minimum signal-to-noise ratio for galaxy spectra.
 axis_bin = 60
@@ -332,8 +332,8 @@ unknown_errors = np.sqrt(unknown_hist)
 sfr_forming_errors = np.sqrt(sfr_forming_hist)
 sfr_quiescent_errors = np.sqrt(sfr_quiescent_hist)
 sfr_unknown_errors = np.sqrt(sfr_unknown_hist)
-fraction = np.where(spiral_hist + elliptical_hist > 0, (elliptical_hist / (spiral_hist + elliptical_hist)), 0)
-fraction_errors = np.where(elliptical_hist + spiral_hist > 0, np.sqrt(elliptical_hist) / (elliptical_hist + spiral_hist), np.nan)
+fraction = np.where(spiral_hist + elliptical_hist + unknown_hist > 0, (elliptical_hist / (spiral_hist + elliptical_hist + unknown_hist)), 0)
+fraction_errors = np.where(elliptical_hist + spiral_hist + unknown_hist > 0, np.sqrt(elliptical_hist) / (elliptical_hist + spiral_hist + unknown_hist), np.nan)
 sfr_fraction = np.where(sfr_forming_hist + sfr_quiescent_hist > 0, (sfr_quiescent_hist / (sfr_forming_hist + sfr_quiescent_hist)), 0)
 sfr_fraction_errors = np.where(sfr_quiescent_hist + sfr_forming_hist > 0, np.sqrt(sfr_quiescent_hist) / (sfr_quiescent_hist +  sfr_forming_hist), np.nan)
 popt_avgsfr, pcov_avgsfr = opt.curve_fit(sine_function, sfr_bin_centres, sfr_mean, sigma = sfr_error_mean, p0 = [1, -11, 0], absolute_sigma = True)
@@ -390,12 +390,12 @@ axis_sfr_mean = axis_sfr_binned / axis_sfr_bin_counts
 axis_sfr_err_binned, _ = np.histogram(axis_sat_majoraxis_list, axis_bins, weights = sfr_error)
 axis_sfr_error_mean = axis_sfr_err_binned / axis_sfr_bin_counts
 
-axis_popt_avgsfr, axis_pcov_avgsfr = opt.curve_fit(sine_function, axis_bin_centres, axis_sfr_mean, sigma = axis_sfr_error_mean, p0 = [1, -11, 0], absolute_sigma = True)
-axis_popt_avgsfr_line, axis_pcov_avgsfr_line = opt.curve_fit(horizontal_line, axis_bin_centres, axis_sfr_mean, sigma = axis_sfr_error_mean, absolute_sigma = True)
-axis_trialY_avgsfr = sine_function(axis_trialX, *axis_popt_avgsfr)
-axis_trialY_avgsfr_line = horizontal_line(axis_trialX, *axis_popt_avgsfr_line)
-axis_sfr_chi2_red = chi2_red(axis_bin_centres, axis_sfr_mean, axis_sfr_error_mean, axis_popt_avgsfr, sine_function)
-axis_sfr_chi2_red_line = chi2_red(axis_bin_centres, axis_sfr_mean, axis_sfr_error_mean, axis_popt_avgsfr_line, horizontal_line)
+#axis_popt_avgsfr, axis_pcov_avgsfr = opt.curve_fit(sine_function, axis_bin_centres, axis_sfr_mean, sigma = axis_sfr_error_mean, p0 = [1, -11, 0], absolute_sigma = True)
+#axis_popt_avgsfr_line, axis_pcov_avgsfr_line = opt.curve_fit(horizontal_line, axis_bin_centres, axis_sfr_mean, sigma = axis_sfr_error_mean, absolute_sigma = True)
+#axis_trialY_avgsfr = sine_function(axis_trialX, *axis_popt_avgsfr)
+#axis_trialY_avgsfr_line = horizontal_line(axis_trialX, *axis_popt_avgsfr_line)
+#axis_sfr_chi2_red = chi2_red(axis_bin_centres, axis_sfr_mean, axis_sfr_error_mean, axis_popt_avgsfr, sine_function)
+#axis_sfr_chi2_red_line = chi2_red(axis_bin_centres, axis_sfr_mean, axis_sfr_error_mean, axis_popt_avgsfr_line, horizontal_line)
 
 ## 0-180 plots for elliptical and quiescent fractions.
 """#3 d.o.f.
@@ -409,7 +409,7 @@ print(f"Sinusoid reduced chi squared: {chi2_red_sfr_frac:.3f}")
 print(f"y = ({popt_sfr_frac[0]:.2f} ± {np.sqrt(pcov_sfr_frac[0,0]):.2f})sin(x + ({popt_sfr_frac[2]:.2f} ± {np.sqrt(pcov_sfr_frac[2,2]):.2f})) + ({popt_sfr_frac[1]:.2f} ± {np.sqrt(pcov_sfr_frac[1,1]):.2f})")
 print(f"Horizontal line reduced chi squared: {chi2_red_sfr_frac_line:.3f}")
 print(f"y = {popt_sfr_frac_line[0]:.2f} ± {np.sqrt(pcov_sfr_frac_line[0,0]):.2f}")"""
-
+"""
 
 #2 d.o.f.
 print("Elliptical fraction")
@@ -422,17 +422,17 @@ print(f"Sinusoid reduced chi squared: {chi2_red_sfr_frac:.3f}")
 print(f"y = ({popt_sfr_frac[0]:.2f} ± {np.sqrt(pcov_sfr_frac[0,0]):.2f})sin(x) + ({popt_sfr_frac[1]:.2f} ± {np.sqrt(pcov_sfr_frac[1,1]):.2f})")
 print(f"Horizontal line reduced chi squared: {chi2_red_sfr_frac_line:.3f}")
 print(f"y = {popt_sfr_frac_line[0]:.2f} ± {np.sqrt(pcov_sfr_frac_line[0,0]):.2f}")
-
+"""
 
 ##Separate Plots
 #Elliptical fraction
-fig, ax = plt.subplots(1, 1, figsize=(16, 12), constrained_layout=True, dpi = 150)
+fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi = 150)
 ax.errorbar(bin_centres, fraction, yerr=fraction_errors, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
 ax.set_ylabel("Fraction of Ellipticals")
 ax.set_title("Elliptical Fraction as a Function of Angle")
 ax.set_ylim(np.nanmin(fraction) * 0.8, np.nanmax(fraction) * 1.2)
 ax.plot(trialX, trialY_frac_line, 'g-', label = 'Horiztontal Line Fit') 
-ax.plot(trialX, trialY_frac, 'r-', label = 'Sinusoidal Fit') 
+ax.plot(trialX, trialY_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_frac[0]:.2f} ± {np.sqrt(pcov_frac[0,0]):.2f})') 
 ax.legend()
 ax.grid(axis="y", linestyle="--", alpha=0.7)
 #ax.text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax.transAxes, =8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
@@ -440,17 +440,17 @@ ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
 # Add a text box near the vertical line
 ax.text(90, np.nanmax(sfr_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=10, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
 plt.show()
-    
 
+"""
 #Quiescent fraction
-fig, ax = plt.subplots(1, 1, figsize=(16, 12), constrained_layout=True, dpi = 150)
+fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi = 150)
 ax.errorbar(bin_centres, sfr_fraction, yerr=sfr_fraction_errors, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
 ax.set_xlabel("Angle (degrees)")
 ax.set_ylabel("Fraction of Quiescent Galaxies")
 ax.set_title("Quiescent Fraction as a Function of Angle")
 ax.set_ylim(np.nanmin(sfr_fraction) * 0.8, np.nanmax(sfr_fraction) * 1.2)
 ax.plot(trialX, trialY_sfr_frac_line, 'g-', label = 'Horiztontal Line Fit') 
-ax.plot(trialX, trialY_sfr_frac, 'r-', label = 'Sinusoidal Fit') 
+ax.plot(trialX, trialY_sfr_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sfr_frac[0]:.2f} ± {np.sqrt(pcov_sfr_frac[0,0]):.2f})') 
 ax.legend()
 ax.grid(axis="y", linestyle="--", alpha=0.7)
 #ax.text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax.transAxes, fontsize=8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
@@ -458,7 +458,7 @@ ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
 
 # Add a text box near the vertical line
 ax.text(90, np.nanmax(sfr_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=10, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
-plt.show()
+plt.show()"""
 
 """##Together
 fig, ax = plt.subplots(2, 1, figsize=(16, 12), constrained_layout=True, dpi = 150)
@@ -608,42 +608,46 @@ plt.show()"""
 
 """
 ## 0-180 morphology + sSFR plots, elliptical star forming fraction, sprial quiescent fraction
-fig, ax = plt.subplots(3, 1, figsize=(16, 12), constrained_layout=True)
-
+fig, ax = plt.subplots(1, 1, figsize=(16, 12), constrained_layout=True, dpi=200)
 #Galaxy counts
-ax[0].errorbar(bin_centres, ef_hist, yerr=ef_err, label="Elliptical Star Forming", color="blue", capsize=2)
-ax[0].errorbar(bin_centres, eq_hist, yerr=eq_err, label="Elliptical Quiescent", color="green", capsize=2)
-ax[0].errorbar(bin_centres, sf_hist, yerr=sf_err, label="Spiral Star Forming", color="red", capsize=2)
-ax[0].errorbar(bin_centres, sq_hist, yerr=sq_err, label="Spiral Quiescent", color="grey", capsize=2)
-ax[0].set_ylabel("Number of Galaxies")
-ax[0].set_title("Galaxy Angle Distribution: Classification + sSFR")
-ax[0].legend()
-ax[0].grid(axis="y", linestyle="--", alpha=0.7)
-
+ax.errorbar(bin_centres, ef_hist, yerr=ef_err, label="Elliptical Star Forming", color="blue", capsize=2)
+ax.errorbar(bin_centres, eq_hist, yerr=eq_err, label="Elliptical Quiescent", color="green", capsize=2)
+ax.errorbar(bin_centres, sf_hist, yerr=sf_err, label="Spiral Star Forming", color="red", capsize=2)
+ax.errorbar(bin_centres, sq_hist, yerr=sq_err, label="Spiral Quiescent", color="grey", capsize=2)
+ax.set_ylabel("Number of Galaxies")
+ax.set_title("Galaxy Angle Distribution: Classification + sSFR")
+ax.legend()
+ax.grid(axis="y", linestyle="--", alpha=0.7)
+plt.tight_layout()
+plt.show()"""
+"""
 #EF fraction
-ax[1].errorbar(bin_centres, ef_fraction, yerr=ef_fraction_err, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
-ax[1].set_ylabel("Fraction of Star Forming Ellipticals")
-ax[1].set_title("Fraction of ellipticals which are star forming as a function of angle")
-ax[1].set_ylim(np.nanmin(ef_fraction) * 0.8, np.nanmax(ef_fraction) * 1.2)
-ax[1].plot(trialX, trialY_ef_frac_line, 'g-', label = 'Horiztontal Line Fit') 
-ax[1].plot(trialX, trialY_ef_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_ef_frac[0]:.2f} ± {np.sqrt(pcov_ef_frac[0,0]):.2f})') 
-ax[1].legend()
-ax[1].grid(axis="y", linestyle="--", alpha=0.7)
+fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=150)
+ax.errorbar(bin_centres, ef_fraction, yerr=ef_fraction_err, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
+ax.set_xlabel("Angle (degrees)")
+ax.set_ylabel("Fraction of Star Forming Ellipticals")
+ax.set_title("Fraction of ellipticals which are star forming as a function of angle")
+ax.set_ylim(np.nanmin(ef_fraction) * 0.8, np.nanmax(ef_fraction) * 1.2)
+ax.plot(trialX, trialY_ef_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+ax.plot(trialX, trialY_ef_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_ef_frac[0]:.2f} ± {np.sqrt(pcov_ef_frac[0,0]):.2f})') 
+ax.legend()
+ax.grid(axis="y", linestyle="--", alpha=0.7)
 #ax[1].text(0.1, 0.2, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax[1].transAxes, fontsize=8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+plt.show()
+"""
 
-#SQ fraction
-ax[2].errorbar(bin_centres, sq_fraction, yerr=sq_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
-ax[2].set_xlabel("Angle (degrees)")
-ax[2].set_ylabel("Fraction of Quiescent Spirals")
-ax[2].set_title("Fraction of spirals which are quiescent as a function of angle")
-ax[2].set_ylim(np.nanmin(sq_fraction) * 0.8, np.nanmax(sq_fraction) * 1.2)
-ax[2].plot(trialX, trialY_sq_frac_line, 'g-', label = 'Horiztontal Line Fit') 
-ax[2].plot(trialX, trialY_sq_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sq_frac[0]:.2f} ± {np.sqrt(pcov_sq_frac[0,0]):.2f})') 
-ax[2].legend()
-ax[2].grid(axis="y", linestyle="--", alpha=0.7)
+"""#SQ fraction
+fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=150)
+ax.errorbar(bin_centres, sq_fraction, yerr=sq_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
+ax.set_xlabel("Angle (degrees)")
+ax.set_ylabel("Fraction of Quiescent Spirals")
+ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+ax.set_ylim(np.nanmin(sq_fraction) * 0.8, np.nanmax(sq_fraction) * 1.2)
+ax.plot(trialX, trialY_sq_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+ax.plot(trialX, trialY_sq_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sq_frac[0]:.2f} ± {np.sqrt(pcov_sq_frac[0,0]):.2f})') 
+ax.legend()
+ax.grid(axis="y", linestyle="--", alpha=0.7)
 #ax[2].text(0.1, 0.2, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax[2].transAxes, fontsize=8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
-
-plt.tight_layout()  # Adjust layout to prevent overlapping elements
 plt.show()"""
 
 """
