@@ -5,18 +5,21 @@ import scipy.optimize as opt
 from astropy.io import fits
 import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
-from functions import sine_function, sine_function_2, cosine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
+from functions import sine_function, sine_function_2, sine_function_3, cosine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
 
 max_z = 0.125 #Maximum redshift in the sample.
 min_lx = 1e43 #Minimum x-ray luminosity for clusters.
-bin_size = 45 #Size in degrees of the bins.
+bin_size = 30 #Size in degrees of the bins.
 sfr_bin_size = 45 #Size in degrees of the bins for the SFR plot.
-min_satellite_mass = 10.2 #Minimum satellite galaxy mass.
-classification_threshold = 1 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
+min_satellite_mass = 10.18 #Minimum satellite galaxy mass.
+classification_threshold = 0.6 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
 sfr_threshold = -11.25 #Threshold of specific star formation rate considered as the boundary between active and quiescent galaxies.
-debiased = 0 #If 1, will use debiased classifications. Else, will use raw classifications.
+debiased = 1 #If 1, will use debiased classifications. Else, will use raw classifications.
 phys_sep = 3500 #Maximum physical separation in kpc between BCG and satellite galaxies.
-max_vel = 6500 #Maximum velocity difference in km/s between BCG and satellite galaxies.
+min_phys_sep = 250 #Minimum physical separation in kpc between BCG and satellite galaxies.
+max_vel = 6000 #Maximum velocity difference in km/s between BCG and satellite galaxies.
+min_vel = 2500 #Minimum velocity difference in km/s between BCG and satellite galaxies.
+
 signal_to_noise = 1 #Minimum signal-to-noise ratio for galaxy spectra.
 axis_bin = 60
 mergers = ['1_9772', '1_1626', '2_3729', '1_5811', '1_1645', '1_9618', '1_4456', '2_19468']
@@ -38,7 +41,7 @@ bcg_df["CLUS_ID"] = bcg_df["CLUS_ID"].astype(str).str.strip().str.replace(" ", "
 bcg_df = bcg_df[(bcg_df['GAL_sdss_i_modSX_C2_PA'] > 0) & (~bcg_df['CLUS_ID'].isin(mergers))]
 
 cluster_df2 = cluster_df[(cluster_df['SCREEN_CLUZSPEC'] < max_z) & (cluster_df['LX0124'] > min_lx)]
-cluster_df2["CLUS_ID"] = cluster_df2["CLUS_ID"].astype(str).str.strip().str.replace(" ", "")
+cluster_df2.loc[:, "CLUS_ID"] = cluster_df2["CLUS_ID"].astype(str).str.strip().str.replace(" ", "")
 #Extract relevant columns from the filtered clusters DataFrame.
 cluster_id = cluster_df2['CLUS_ID'].values
 cluster_ra = cluster_df2['RA'].values
@@ -59,10 +62,16 @@ gz_ra = gz_df['RA_1'].values
 gz_dec = gz_df['DEC_1'].values
 gz_z = gz_df['Z'].values
 gz_mass = gz_df['LGM_TOT_P50'].values
+gz_mass16 = gz_df['LGM_TOT_P16'].values
+gz_mass84 = gz_df['LGM_TOT_P84'].values
 gz_sfr = gz_df['SPECSFR_TOT_P50'].values
 gz_sfr16 = gz_df['SPECSFR_TOT_P16'].values
 gz_sfr84 = gz_df['SPECSFR_TOT_P84'].values
 gz_s_n = gz_df['SN_MEDIAN'].values
+
+sigma_symmetric = (gz_mass84 - gz_mass16) / 2
+median_sigma = np.median(sigma_symmetric)
+print(f"median_sigma: {median_sigma:.2f}")
 
 #Switch to choose either the debiased or undebiased values for elliptical / spiral probability.
 if debiased == 1:
@@ -84,7 +93,7 @@ angular_separation = np.sqrt((ra_diff ** 2) * (np.cos(np.radians(reduced_cluster
 degrees_per_mpc = (1 / 3600) * cosmo.arcsec_per_kpc_proper(reduced_clusters_z[:, None]).value
 
 #Apply the selection criteria (angular separation and redshift difference).
-selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_mpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) & (gz_s_n > signal_to_noise)
+selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_mpc) & (angular_separation > min_phys_sep * degrees_per_mpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) & (gz_s_n > signal_to_noise) & (z_diff > min_vel / 3e5)
 
 #Create a list of Galaxy data for each cluster.
 reduced_clusters_locals_id = [gz_id[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
@@ -265,17 +274,17 @@ ef_fraction = np.where(ef_hist + eq_hist > 0, (ef_hist / (ef_hist + eq_hist)), 0
 sq_fraction = np.where(sq_hist + sf_hist > 0, (sq_hist / (sq_hist + sf_hist)), 0)
 ef_fraction_err = np.where(ef_hist + eq_hist > 0, np.sqrt(ef_hist) / (ef_hist + eq_hist), np.nan)
 sq_fraction_err = np.where(sq_hist + sf_hist > 0, np.sqrt(sq_hist) / (sq_hist + sf_hist), np.nan)
-popt_ef_frac, pcov_ef_frac = opt.curve_fit(sine_function, bin_centres, ef_fraction, sigma = ef_fraction_err, p0 = [0.1, 0.75, 0], absolute_sigma = True)
-popt_ef_frac_line, pcov_ef_frac_line = opt.curve_fit(horizontal_line, bin_centres, ef_fraction, sigma = ef_fraction_err, absolute_sigma = True)
-popt_sq_frac, pcov_sq_frac = opt.curve_fit(sine_function, bin_centres, sq_fraction, sigma = sq_fraction_err, p0 = [0.1, 0.75, 0], absolute_sigma = True)
+popt_ef_frac, pcov_ef_frac = opt.curve_fit(sine_function_2, bin_centres, ef_fraction, sigma = ef_fraction_err, p0 = [0.03, 0.03], absolute_sigma = True)
+popt_ef_frac_line, pcov_ef_frac_line = opt.curve_fit(horizontal_line, bin_centres, ef_fraction, sigma = ef_fraction_err, p0 = [0.05], absolute_sigma = True)
+popt_sq_frac, pcov_sq_frac = opt.curve_fit(sine_function_2, bin_centres, sq_fraction, sigma = sq_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
 popt_sq_frac_line, pcov_sq_frac_line = opt.curve_fit(horizontal_line, bin_centres, sq_fraction, sigma = sq_fraction_err, absolute_sigma = True)
-trialY_ef_frac = sine_function(trialX, *popt_ef_frac)
+trialY_ef_frac = sine_function_2(trialX, *popt_ef_frac)
 trialY_ef_frac_line = horizontal_line(trialX, *popt_ef_frac_line)
-trialY_sq_frac = sine_function(trialX, *popt_sq_frac)
+trialY_sq_frac = sine_function_2(trialX, *popt_sq_frac)
 trialY_sq_frac_line = horizontal_line(trialX, *popt_sq_frac_line)
-chi2_red_ef_frac = chi2_red(bin_centres, ef_fraction, ef_fraction_err, popt_ef_frac, sine_function)
+chi2_red_ef_frac = chi2_red(bin_centres, ef_fraction, ef_fraction_err, popt_ef_frac, sine_function_2)
 chi2_red_ef_frac_line = chi2_red(bin_centres, ef_fraction, ef_fraction_err, popt_ef_frac_line, horizontal_line)
-chi2_red_sq_frac = chi2_red(bin_centres, sq_fraction, sq_fraction_err, popt_sq_frac, sine_function)
+chi2_red_sq_frac = chi2_red(bin_centres, sq_fraction, sq_fraction_err, popt_sq_frac, sine_function_2)
 chi2_red_sq_frac_line = chi2_red(bin_centres, sq_fraction, sq_fraction_err, popt_sq_frac_line, horizontal_line)
 
 axis_ef_hist, _ = np.histogram(axis_ef, bins=axis_bins)
@@ -292,13 +301,13 @@ axis_ef_fraction = np.where(axis_ef_hist + axis_eq_hist > 0, (axis_ef_hist / (ax
 axis_sq_fraction = np.where(axis_sq_hist + axis_sf_hist > 0, (axis_sq_hist / (axis_sq_hist + axis_sf_hist)), 0)
 axis_ef_fraction_err = np.where(axis_ef_hist + axis_eq_hist > 0, np.sqrt(axis_ef_hist) / (axis_ef_hist + axis_eq_hist), np.nan)
 axis_sq_fraction_err = np.where(axis_sq_hist + axis_sf_hist > 0, np.sqrt(axis_sq_hist) / (axis_sq_hist + axis_sf_hist), np.nan)
-axis_popt_ef_frac, axis_pcov_ef_frac = opt.curve_fit(sine_function_2, axis_bin_centres, axis_ef_fraction, sigma = axis_ef_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+axis_popt_ef_frac, axis_pcov_ef_frac = opt.curve_fit(sine_function_3, axis_bin_centres, axis_ef_fraction, sigma = axis_ef_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
 axis_popt_ef_frac_line, axis_pcov_ef_frac_line = opt.curve_fit(horizontal_line, axis_bin_centres, axis_ef_fraction, sigma = axis_ef_fraction_err, absolute_sigma = True)
-axis_popt_sq_frac, axis_pcov_sq_frac = opt.curve_fit(sine_function_2, axis_bin_centres, axis_sq_fraction, sigma = axis_sq_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+axis_popt_sq_frac, axis_pcov_sq_frac = opt.curve_fit(sine_function_3, axis_bin_centres, axis_sq_fraction, sigma = axis_sq_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
 axis_popt_sq_frac_line, axis_pcov_sq_frac_line = opt.curve_fit(horizontal_line, axis_bin_centres, axis_sq_fraction, sigma = axis_sq_fraction_err, absolute_sigma = True)
-axis_trialY_ef_frac = sine_function_2(axis_trialX, *axis_popt_ef_frac)
+axis_trialY_ef_frac = sine_function_3(axis_trialX, *axis_popt_ef_frac)
 axis_trialY_ef_frac_line = horizontal_line(axis_trialX, *axis_popt_ef_frac_line)
-axis_trialY_sq_frac = sine_function_2(axis_trialX, *axis_popt_sq_frac)
+axis_trialY_sq_frac = sine_function_3(axis_trialX, *axis_popt_sq_frac)
 axis_trialY_sq_frac_line = horizontal_line(axis_trialX, *axis_popt_sq_frac_line)
 axis_chi2_red_ef_frac = chi2_red(axis_bin_centres, axis_ef_fraction, axis_ef_fraction_err, axis_popt_ef_frac, sine_function_2)
 axis_chi2_red_ef_frac_line = chi2_red(axis_bin_centres, axis_ef_fraction, axis_ef_fraction_err, axis_popt_ef_frac_line, horizontal_line)
@@ -401,6 +410,7 @@ print(f"y = ({popt_sfr_frac[0]:.2f} ± {np.sqrt(pcov_sfr_frac[0,0]):.2f})sin(x +
 print(f"Horizontal line reduced chi squared: {chi2_red_sfr_frac_line:.3f}")
 print(f"y = {popt_sfr_frac_line[0]:.2f} ± {np.sqrt(pcov_sfr_frac_line[0,0]):.2f}")"""
 
+
 #2 d.o.f.
 print("Elliptical fraction")
 print(f"Sinusoid reduced chi squared: {chi2_red_frac:.3f}")
@@ -425,10 +435,10 @@ ax.plot(trialX, trialY_frac_line, 'g-', label = 'Horiztontal Line Fit')
 ax.plot(trialX, trialY_frac, 'r-', label = 'Sinusoidal Fit') 
 ax.legend()
 ax.grid(axis="y", linestyle="--", alpha=0.7)
-ax.text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", 
-           ha="center", va="center", transform=ax.transAxes, 
-           fontsize=8, fontweight="normal", 
-           bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+#ax.text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax.transAxes, =8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+# Add a text box near the vertical line
+ax.text(90, np.nanmax(sfr_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=10, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
 plt.show()
     
 
@@ -443,10 +453,11 @@ ax.plot(trialX, trialY_sfr_frac_line, 'g-', label = 'Horiztontal Line Fit')
 ax.plot(trialX, trialY_sfr_frac, 'r-', label = 'Sinusoidal Fit') 
 ax.legend()
 ax.grid(axis="y", linestyle="--", alpha=0.7)
-ax.text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", 
-           ha="center", va="center", transform=ax.transAxes, 
-           fontsize=8, fontweight="normal", 
-           bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+#ax.text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax.transAxes, fontsize=8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+
+# Add a text box near the vertical line
+ax.text(90, np.nanmax(sfr_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=10, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
 plt.show()
 
 """##Together
@@ -578,7 +589,6 @@ print(f"Horizontal line reduced chi squared: {axis_sfr_chi2_red_line:.3f}")
 print(f"y = {axis_popt_avgsfr_line[0]:.2f} ± {np.sqrt(axis_pcov_avgsfr_line[0,0]):.2f}")
 
 ax.scatter(axis_sat_majoraxis_list, sfr_list, label="sSFR", color="orange", marker = 'o', s = 5, linewidth = 0.5, linestyle = 'None')
-#ax[0].plot(trialX, trialY_sfr, 'g-', label = 'Sinusoidal Fit') 
 ax.set_ylabel("sSFR", fontsize=16)
 ax.set_xlabel("Angle (degrees)", fontsize=16)
 ax.set_title("Specific Star Formation Rate as a Function of Angle", fontsize=18)
@@ -619,10 +629,7 @@ ax[1].plot(trialX, trialY_ef_frac_line, 'g-', label = 'Horiztontal Line Fit')
 ax[1].plot(trialX, trialY_ef_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_ef_frac[0]:.2f} ± {np.sqrt(pcov_ef_frac[0,0]):.2f})') 
 ax[1].legend()
 ax[1].grid(axis="y", linestyle="--", alpha=0.7)
-ax[1].text(0.1, 0.2, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", 
-           ha="center", va="center", transform=ax[1].transAxes, 
-           fontsize=8, fontweight="normal", 
-           bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+#ax[1].text(0.1, 0.2, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax[1].transAxes, fontsize=8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
 
 #SQ fraction
 ax[2].errorbar(bin_centres, sq_fraction, yerr=sq_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
@@ -634,10 +641,7 @@ ax[2].plot(trialX, trialY_sq_frac_line, 'g-', label = 'Horiztontal Line Fit')
 ax[2].plot(trialX, trialY_sq_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sq_frac[0]:.2f} ± {np.sqrt(pcov_sq_frac[0,0]):.2f})') 
 ax[2].legend()
 ax[2].grid(axis="y", linestyle="--", alpha=0.7)
-ax[2].text(0.1, 0.2, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", 
-           ha="center", va="center", transform=ax[2].transAxes, 
-           fontsize=8, fontweight="normal", 
-           bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+#ax[2].text(0.1, 0.2, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax[2].transAxes, fontsize=8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
 
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
 plt.show()"""
@@ -694,8 +698,8 @@ ax[1,1].text(0.7, 0.7, f"Minimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Ma
 
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
 plt.show()
-
-
+"""
+"""
 ## -45-135 morphology + sSFR plots, elliptical star forming fraction, sprial quiescent fraction
 fig, ax = plt.subplots(3, 1, figsize=(16, 12), constrained_layout=True)
 
@@ -720,10 +724,7 @@ ax[1].plot(axis_trialX, axis_trialY_ef_frac_line, 'g-', label = 'Horiztontal Lin
 ax[1].plot(axis_trialX, axis_trialY_ef_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {axis_popt_ef_frac[0]:.2f} ± {np.sqrt(axis_pcov_ef_frac[0,0]):.2f})') 
 ax[1].legend()
 ax[1].grid(axis="y", linestyle="--", alpha=0.7)
-ax[1].text(0.1, 0.5, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", 
-           ha="center", va="center", transform=ax[1].transAxes, 
-           fontsize=8, fontweight="normal", 
-           bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+#ax[1].text(0.1, 0.5, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax[1].transAxes, fontsize=8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
 
 #SQ fraction
 ax[2].errorbar(axis_bin_centres, axis_sq_fraction, yerr=axis_sq_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
@@ -736,11 +737,7 @@ ax[2].plot(axis_trialX, axis_trialY_sq_frac_line, 'g-', label = 'Horiztontal Lin
 ax[2].plot(axis_trialX, axis_trialY_sq_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {axis_popt_sq_frac[0]:.2f} ± {np.sqrt(axis_pcov_sq_frac[0,0]):.2f})') 
 ax[2].legend()
 ax[2].grid(axis="y", linestyle="--", alpha=0.7)
-ax[2].text(0.1, 0.5, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", 
-           ha="center", va="center", transform=ax[2].transAxes, 
-           fontsize=8, fontweight="normal", 
-           bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+#ax[2].text(0.1, 0.5, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax[2].transAxes, fontsize=8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
 
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
-plt.show()
-"""
+plt.show()"""

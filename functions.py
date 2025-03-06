@@ -8,6 +8,10 @@ def sine_function_2(x, a, b):
     x_rad = np.deg2rad(x)
     return a * np.sin(x_rad) + b
 
+def sine_function_3(x, a, b):
+    x_rad = np.deg2rad(x)
+    return a * np.sin(2 * x_rad) + b
+
 def cosine_function(x, a, b, phase):
     x_rad = np.deg2rad(x)
     return a * np.cos(x_rad + phase) + b
