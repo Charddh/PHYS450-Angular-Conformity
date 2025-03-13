@@ -1,4 +1,6 @@
 import numpy as np
+from astropy.cosmology import FlatLambdaCDM
+cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 
 def sine_function(x, a, b, phase):
     x_rad = np.deg2rad(x)
@@ -83,3 +85,27 @@ def calculate_theta(bcg_ra, bcg_dec, gal_ra, gal_dec):
     theta_raw = np.arctan2(delta_ra, delta_dec)
     theta_clockwise = (2*np.pi - (theta_raw + np.pi)) % (2 * np.pi)
     return np.degrees(theta_clockwise)
+
+def calculate_radial_distance(bcg_ra, bcg_dec, bcg_z, gal_ra, gal_dec):
+    """
+    Compute the radial distance between a BCG and satellite galaxy.
+    """
+    if (isinstance(gal_ra, str) and gal_ra.strip() == "[]") or (isinstance(gal_dec, str) and gal_dec.strip() == "[]") or (isinstance(bcg_z, str) and gal_z.strip() == "[]"):
+        return []
+    gal_ra = np.array(gal_ra, dtype=float)
+    gal_dec = np.array(gal_dec, dtype=float)
+    ra_diff = bcg_ra - gal_ra
+    dec_diff = bcg_dec - gal_dec
+    angular_separation = np.sqrt((ra_diff ** 2) * (np.cos(np.radians(bcg_dec)) ** 2) + dec_diff ** 2)
+    degrees_per_kpc = (1 / 3600) * cosmo.arcsec_per_kpc_proper(bcg_z).value
+    separation = angular_separation / degrees_per_kpc
+    return separation
+
+def calculate_velocity_distance(bcg_z, gal_z):
+    """
+    Compute the velocity difference between a BCG and satellite galaxy in kms^-1.
+    """
+    if (isinstance(gal_z, str) and gal_z.strip() == "[]"):
+        return []
+    vel_diff = 299792.458 * (bcg_z - gal_z)
+    return vel_diff
