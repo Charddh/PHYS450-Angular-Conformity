@@ -25,10 +25,10 @@ binaries = ['2_13471', '1_12336', '1_9849', '1_21627', '2_1139', '1_23993', '2_3
 classification_thresholds = [0.5, 0.6, 0.8, 1]
 debiaseds = [0, 1]
 bin_sizes = [20, 30, 45, 60]
-phys_seps = [500, 750, 900, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 3000, 4000, 5000]
+phys_seps = [1000, 1250, 1500, 1600, 1750, 1800, 1900, 2000, 2100, 2250, 2500, 3000]
 min_phys_seps = [0]
 sfr_thresholds = [-10.75, -11.0, -11.25, -11.5, -11.75]
-min_lxs = [1e42, 0.5e43, 1e43, 5e43]
+min_lxs = [1e43, 2e43, 2.5e43, 3e43, 3.5e43, 4e43]
 
 
 total_iterations = (len(classification_thresholds) * len(debiaseds) * len(bin_sizes) * len(phys_seps) * len(min_phys_seps) * len(min_lxs) * len(sfr_thresholds))
