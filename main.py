@@ -7,27 +7,32 @@ import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 from functions import sine_function, sine_function_2, sine_function_3, cosine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
 
+definate_mergers = ['1_9618']
+mergers = ['1_9772', '1_1626', '2_3729', '1_5811', '1_1645', '1_9618', '1_4456', '2_19468']
+binaries_mergers = ['2_13471', '1_12336', '1_9849', '1_21627', '2_1139', '1_23993', '2_3273', '2_11151', '1_14486', '1_4409', '1_14573', '1_14884', '1_5823', '1_14426', '1_9772', '1_1626', '2_3729', '1_5811', '1_1645', '1_9618', '1_4456', '2_19468']
 max_z = 0.125 #Maximum redshift in the sample.
-min_lx = 1e43 #Minimum x-ray luminosity for clusters.
-bin_size = 30 #Size in degrees of the bins.
+min_lx = 2e43 #Minimum x-ray luminosity for clusters.
+bin_size = 60 #Size in degrees of the bins.
 axis_bin = 60 #Size in degrees of the axis bins.
-sfr_bin_size = 30 #Size in degrees of the bins for the SFR plot.
+sfr_bin_size = 60 #Size in degrees of the bins for the SFR plot.
 min_satellite_mass = 10.2 #Minimum satellite galaxy mass.
+max_satellite_mass = 11.5 #Maximum satellite galaxy mass.
 classification_threshold = 0.5 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
-sfr_threshold = -11.5 #Threshold of specific star formation rate considered as the boundary between active and quiescent galaxies.
+sfr_threshold = -11.0 #Threshold of specific star formation rate considered as the boundary between active and quiescent galaxies.
 debiased = 1 #If 1, will use debiased classifications. Else, will use raw classifications.
-phys_sep = 2250 #Maximum physical separation in kpc between BCG and satellite galaxies.
+phys_sep = 1750 #Maximum physical separation in kpc between BCG and satellite galaxies.
 min_phys_sep = 0 #Minimum physical separation in kpc between BCG and satellite galaxies.
+mergers = ['1_9618', '1_1626', '1_5811', '1_1645']
 
-show_elliptical = 0 #If 1, will show the elliptical fraction plot.
-show_quiescent = 0 #If 1, will show the quiescent fraction plot.
-show_ef = 0 #If 1, will show the star forming elliptical fraction plot.
+show_elliptical = 1 #If 1, will show the elliptical fraction plot.
+show_quiescent = 1 #If 1, will show the quiescent fraction plot.
+show_ef = 1 #If 1, will show the star forming elliptical fraction plot.
 show_sq = 1 #If 1, will show the quiescent spiral fraction plot.
+show_ssfr = 0
 
 signal_to_noise = 1 #Minimum signal-to-noise ratio for galaxy spectra.
 axis_bin = 60
-mergers = ['1_9772', '1_1626', '2_3729', '1_5811', '1_1645', '1_9618', '1_4456', '2_19468']
-binaries = ['2_13471', '1_12336', '1_9849', '1_21627', '2_1139', '1_23993', '2_3273', '2_11151', '1_14486', '1_4409', '1_14573', '1_14884', '1_5823', '1_14426']
+
 #Open the cluster FITS file and retrieve the data from the second HDU (Header Data Unit).
 
 cluster_data = fits.open("catCluster-SPIDERS_RASS_CLUS-v3.0.fits")[1].data
@@ -110,7 +115,7 @@ if 0 < min_phys_sep <= 3000:
     min_vel = -0.43 * min_phys_sep + 2000
     selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_kpc) & (angular_separation > min_phys_sep * degrees_per_kpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) & (gz_s_n > signal_to_noise) & (z_diff > min_vel / 3e5)
 elif min_phys_sep == 0:
-    selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_kpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) & (gz_s_n > signal_to_noise)
+    selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_kpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) & (gz_s_n > signal_to_noise) & (gz_mass < max_satellite_mass)
 elif 3000 < min_phys_sep < 5000:
     min_vel = 500
     selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_kpc) & (angular_separation > min_phys_sep * degrees_per_kpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) & (gz_s_n > signal_to_noise) & (z_diff > min_vel / 3e5)    
@@ -347,12 +352,6 @@ unknown_hist, _ = np.histogram(unknowns, bins=bins, density=False)
 sfr_forming_hist, _ = np.histogram(sfr_forming, bins=bins)
 sfr_quiescent_hist, _ = np.histogram(sfr_quiescent, bins=bins)
 sfr_unknown_hist, _ = np.histogram(sfr_unknowns, bins=bins)
-sfr_bin_counts, sfr_bin_edges = np.histogram(sat_majoraxis_list, sfr_bins)
-sfr_binned, _ = np.histogram(sat_majoraxis_list, sfr_bins, weights = sfr_list)
-sfr_mean = sfr_binned / sfr_bin_counts
-sfr_err_binned, _ = np.histogram(sat_majoraxis_list, sfr_bins, weights = sfr_error)
-sfr_error_mean = sfr_err_binned / sfr_bin_counts
-sfr_bin_centres = (sfr_bin_edges[:-1] + sfr_bin_edges[1:]) /2
 spiral_errors = np.sqrt(spiral_hist)
 elliptical_errors = np.sqrt(elliptical_hist)
 unknown_errors = np.sqrt(unknown_hist)
@@ -363,15 +362,11 @@ fraction = np.where(spiral_hist + elliptical_hist + unknown_hist > 0, (elliptica
 fraction_errors = np.where(elliptical_hist + spiral_hist + unknown_hist > 0, np.sqrt(elliptical_hist) / (elliptical_hist + spiral_hist + unknown_hist), np.nan)
 sfr_fraction = np.where(sfr_forming_hist + sfr_quiescent_hist > 0, (sfr_quiescent_hist / (sfr_forming_hist + sfr_quiescent_hist)), 0)
 sfr_fraction_errors = np.where(sfr_quiescent_hist + sfr_forming_hist > 0, np.sqrt(sfr_quiescent_hist) / (sfr_quiescent_hist +  sfr_forming_hist), np.nan)
-popt_avgsfr, pcov_avgsfr = opt.curve_fit(sine_function, sfr_bin_centres, sfr_mean, sigma = sfr_error_mean, p0 = [1, -11, 0], absolute_sigma = True)
-popt_avgsfr_line, pcov_avgsfr_line = opt.curve_fit(horizontal_line, sfr_bin_centres, sfr_mean, sigma = sfr_error_mean, absolute_sigma = True)
 popt_sfr, pcov_sfr = opt.curve_fit(sine_function, sat_majoraxis_list, sfr_list, sigma = sfr_error, p0 = [1, -11, 0], absolute_sigma = True)
 popt_frac, pcov_frac = opt.curve_fit(sine_function_2, bin_centres, fraction, sigma = fraction_errors, p0 = [0.1, 0.75], absolute_sigma = True)
 popt_frac_line, pcov_frac_line = opt.curve_fit(horizontal_line, bin_centres, fraction, sigma = fraction_errors, absolute_sigma = True)
 popt_sfr_frac, pcov_sfr_frac = opt.curve_fit(sine_function_2, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, p0 = [0.1, 0], absolute_sigma = True)
 popt_sfr_frac_line, pcov_sfr_frac_line = opt.curve_fit(horizontal_line, bin_centres, sfr_fraction, sigma = sfr_fraction_errors, absolute_sigma = True)
-trialY_avgsfr = sine_function(trialX, *popt_avgsfr)
-trialY_avgsfr_line = horizontal_line(trialX, *popt_avgsfr_line)
 trialY_frac = sine_function_2(trialX, *popt_frac)
 trialY_frac_line = horizontal_line(trialX, *popt_frac_line)
 trialY_sfr = sine_function(trialX, *popt_sfr)
@@ -381,7 +376,18 @@ chi2_red_frac = chi2_red(bin_centres, fraction, fraction_errors, popt_frac, sine
 chi2_red_frac_line = chi2_red(bin_centres, fraction, fraction_errors, popt_frac_line, horizontal_line)
 chi2_red_sfr_frac = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac, sine_function_2)
 chi2_red_sfr_frac_line = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors, popt_sfr_frac_line, horizontal_line)
-sfr_chi2_red = chi2_red(sfr_bin_centres, sfr_mean, sfr_error_mean, popt_avgsfr, sine_function)
+
+sfr_err_binned, _ = np.histogram(sat_majoraxis_list, sfr_bins, weights=sfr_error**2)
+sfr_bin_counts, sfr_bin_edges = np.histogram(sat_majoraxis_list, sfr_bins)
+sfr_binned, _ = np.histogram(sat_majoraxis_list, sfr_bins, weights = sfr_list)
+sfr_mean = np.where(sfr_bin_counts > 0, sfr_binned / sfr_bin_counts, np.nan)
+sfr_error_mean = np.where(sfr_bin_counts > 0, np.sqrt(sfr_binned) / sfr_bin_counts, np.nan)
+sfr_bin_centres = (sfr_bin_edges[:-1] + sfr_bin_edges[1:]) /2
+popt_avgsfr, pcov_avgsfr = opt.curve_fit(sine_function_2, sfr_bin_centres, sfr_mean, sigma = sfr_error_mean, p0 = [0.5, -12], absolute_sigma = True)
+popt_avgsfr_line, pcov_avgsfr_line = opt.curve_fit(horizontal_line, sfr_bin_centres, sfr_mean, sigma = sfr_error_mean, absolute_sigma = True)
+trialY_avgsfr = sine_function_2(trialX, *popt_avgsfr)
+trialY_avgsfr_line = horizontal_line(trialX, *popt_avgsfr_line)
+sfr_chi2_red = chi2_red(sfr_bin_centres, sfr_mean, sfr_error_mean, popt_avgsfr, sine_function_2)
 sfr_chi2_red_line = chi2_red(sfr_bin_centres, sfr_mean, sfr_error_mean, popt_avgsfr_line, horizontal_line)
 
 axis_spiral_hist, _ = np.histogram(axis_spirals, bins=axis_bins)
@@ -458,7 +464,7 @@ if show_elliptical == 1:
     ax.errorbar(bin_centres, fraction, yerr=fraction_errors, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
     ax.set_xlabel("Angle (degrees)")
     ax.set_ylabel("Fraction of Ellipticals")
-    ax.set_title("Elliptical Fraction as a Function of Angle")
+    #ax.set_title("Elliptical Fraction as a Function of Angle")
     ax.set_ylim(np.nanmin(fraction) * 0.8, np.nanmax(fraction) * 1.2)
     ax.plot(trialX, trialY_frac_line, 'g-', label = 'Horiztontal Line Fit') 
     ax.plot(trialX, trialY_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_frac[0]:.3f} ± {np.sqrt(pcov_frac[0,0]):.3f})') 
@@ -477,7 +483,7 @@ if show_quiescent == 1:
     ax.errorbar(bin_centres, sfr_fraction, yerr=sfr_fraction_errors, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
     ax.set_xlabel("Angle (degrees)")
     ax.set_ylabel("Fraction of Quiescent Galaxies")
-    ax.set_title("Quiescent Fraction as a Function of Angle")
+    #ax.set_title("Quiescent Fraction as a Function of Angle")
     ax.set_ylim(np.nanmin(sfr_fraction) * 0.8, np.nanmax(sfr_fraction) * 1.2)
     ax.plot(trialX, trialY_sfr_frac_line, 'g-', label = 'Horiztontal Line Fit') 
     ax.plot(trialX, trialY_sfr_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sfr_frac[0]:.3f} ± {np.sqrt(pcov_sfr_frac[0,0]):.3f})') 
@@ -578,34 +584,30 @@ ax[1,1].text(0.7, 0.7, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nM
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
 plt.show()
 """
-"""
+
 ## 0-180 sSFR plots
-fig, ax = plt.subplots(1, 1, figsize=(16, 12), constrained_layout=True, dpi = 125)
+if show_ssfr == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi = 200)
+    print("Elliptical fraction")
+    print(f"Sinusoid reduced chi squared: {sfr_chi2_red:.3f}")
+    print(f"y = ({popt_avgsfr[0]:.2f} ± {np.sqrt(pcov_avgsfr[0,0]):.2f})sin(x) + ({popt_avgsfr[1]:.2f} ± {np.sqrt(pcov_avgsfr[1,1]):.2f})")
+    print(f"Horizontal line reduced chi squared: {sfr_chi2_red_line:.3f}")
+    print(f"y = {popt_avgsfr_line[0]:.2f} ± {np.sqrt(pcov_avgsfr_line[0,0]):.2f}")
 
-
-print("Elliptical fraction")
-print(f"Sinusoid reduced chi squared: {sfr_chi2_red:.3f}")
-print(f"y = ({popt_avgsfr[0]:.2f} ± {np.sqrt(pcov_avgsfr[0,0]):.2f})sin(x + ({popt_avgsfr[2]:.2f} ± {np.sqrt(pcov_avgsfr[2,2]):.2f})) + ({popt_avgsfr[1]:.2f} ± {np.sqrt(pcov_avgsfr[1,1]):.2f})")
-print(f"Horizontal line reduced chi squared: {sfr_chi2_red_line:.3f}")
-print(f"y = {popt_avgsfr_line[0]:.2f} ± {np.sqrt(pcov_avgsfr_line[0,0]):.2f}")
-
-ax.scatter(sat_majoraxis_list, sfr_list, label="sSFR", color="orange", marker = 'o', s = 5, linewidth = 0.5, linestyle = 'None')
-ax.set_ylabel("sSFR", fontsize=16)
-ax.set_xlabel("Angle (degrees)", fontsize=16)
-ax.set_title("Specific Star Formation Rate as a Function of Angle", fontsize=18)
-ax.legend()
-ax.grid(axis="y", linestyle="--", alpha=0.7)
-ax.errorbar(sfr_bin_centres, sfr_mean, yerr=sfr_error_mean, label="Binned sSFR", markerfacecolor='blue', markeredgecolor='black', ecolor='blue', capsize=2, marker = 's', markersize = 10, linewidth = 0.5, linestyle = 'None')
-ax.plot(trialX, trialY_avgsfr, 'g-', label = 'Sinusoidal Fit') 
-ax.plot(trialX, trialY_avgsfr_line, 'r-', label = 'Horizontal Line Fit')
-ax.set_ylim(-13, -10.5)  # Modify the Y-axis limits as needed
-ax.set_xlim(0, 180)  # Modify the Y-axis limits as needed
-ax.legend(fontsize=14)
-plt.tick_params(axis='both', labelsize=12)  # Adjust the tick labels size for both axes
-
-# Show the plot
-plt.tight_layout()  # Adjust layout to prevent overlapping elements
-plt.show()"""
+    ax.scatter(sat_majoraxis_list, sfr_list, label="sSFR", color="orange", marker = 'o', s = 5, linewidth = 0.5, linestyle = 'None')
+    ax.set_ylabel("sSFR", fontsize=16)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_title("Specific Star Formation Rate as a Function of Angle", fontsize=18)
+    ax.legend()
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.errorbar(sfr_bin_centres, sfr_mean, yerr=sfr_error_mean, label="Binned sSFR", markerfacecolor='blue', markeredgecolor='black', ecolor='blue', capsize=2, marker = 's', markersize = 10, linewidth = 0.5, linestyle = 'None')
+    ax.plot(trialX, trialY_avgsfr, 'g-', label = 'Sinusoidal Fit') 
+    ax.plot(trialX, trialY_avgsfr_line, 'r-', label = 'Horizontal Line Fit')
+    ax.set_ylim(-13, -10.5)
+    ax.set_xlim(0, 180)
+    ax.legend(fontsize=14)
+    plt.tick_params(axis='both', labelsize=12)
+    plt.show()
 
 """
 ## -45 - 135 sSFR plots
@@ -656,7 +658,7 @@ if show_ef == 1:
     ax.errorbar(bin_centres, ef_fraction, yerr=ef_fraction_err, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
     ax.set_xlabel("Angle (degrees)")
     ax.set_ylabel("Fraction of Star Forming Ellipticals")
-    ax.set_title("Fraction of ellipticals which are star forming as a function of angle")
+    #ax.set_title("Fraction of ellipticals which are star forming as a function of angle")
     ax.set_ylim(np.nanmin(ef_fraction) * 0.8, np.nanmax(ef_fraction) * 1.2)
     ax.plot(trialX, trialY_ef_frac_line, 'g-', label = 'Horiztontal Line Fit') 
     ax.plot(trialX, trialY_ef_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_ef_frac[0]:.3f} ± {np.sqrt(pcov_ef_frac[0,0]):.3f})') 
@@ -675,7 +677,7 @@ if show_sq == 1:
     ax.errorbar(bin_centres, sq_fraction, yerr=sq_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
     ax.set_xlabel("Angle (degrees)")
     ax.set_ylabel("Fraction of Quiescent Spirals")
-    ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
     ax.set_ylim(np.nanmin(sq_fraction) * 0.8, np.nanmax(sq_fraction) * 1.2)
     ax.plot(trialX, trialY_sq_frac_line, 'g-', label = 'Horiztontal Line Fit') 
     ax.plot(trialX, trialY_sq_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sq_frac[0]:.3f} ± {np.sqrt(pcov_sq_frac[0,0]):.3f})') 

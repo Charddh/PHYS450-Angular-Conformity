@@ -16,9 +16,9 @@ min_satellite_mass = 10.2 #Minimum satellite galaxy mass.
 classification_threshold = 1 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
 sfr_threshold = -11.25 #Threshold of specific star formation rate considered as the boundary between active and quiescent galaxies.
 debiased = 1 #If 1, will use debiased classifications. Else, will use raw classifications.
-phys_sep = 5000 #Maximum physical separation in kpc between BCG and satellite galaxies.
+phys_sep = 3000 #Maximum physical separation in kpc between BCG and satellite galaxies.
 min_phys_sep = 0 #Minimum physical separation in kpc between BCG and satellite galaxies.
-max_vel = 2500 #Maximum velocity difference in km/s between BCG and satellite galaxies.
+max_vel = 1500 #Maximum velocity difference in km/s between BCG and satellite galaxies.
 min_vel = 0 #Minimum velocity difference in km/s between BCG and satellite galaxies.
 
 core_radius = 1750 #Radius of the 'core' satellite galaxies in kpc
@@ -35,7 +35,7 @@ show_sq = 0
 show_physical_combo = 0
 show_physical_morph = 0
 show_physical_forming = 0
-show_physical_heat = 1
+show_physical_heat = 0
 show_physical_heat_morph = 0
 show_physical_heat_forming = 0
 
@@ -44,6 +44,7 @@ show_phase_space_morph = 0
 show_phase_space_forming = 0
 show_phase_heat = 0
 show_phase_heat_morph = 0
+show_phase_heat_morph_form = 1
 show_phase_heat_forming = 0
 
 signal_to_noise = 1 #Minimum signal-to-noise ratio for galaxy spectra.
@@ -757,7 +758,44 @@ if show_phase_heat == 1:
     plt.show()
 
 if show_phase_heat_morph == 1:
+    title_mapping = {'e': 'Elliptical', 's': 'Spiral'}
     # Create DataFrame
+    df = pd.DataFrame({
+        'radial_sep': radial_sep_list,
+        'vel_diff': vel_diff_list,
+        'morph': sat_type_list
+    })
+    df = df[df['morph'].isin(['e', 's'])]
+
+    # FacetGrid by morphological class
+    g = sns.FacetGrid(
+        df, 
+        col='morph',  # Split by category
+        col_order=['e', 's'],  # Ensure consistent order
+        col_wrap=2,  # Adjust layout
+        height=4, 
+        aspect=1.2
+    )
+    g.map_dataframe(
+        sns.histplot, 
+        x='radial_sep', 
+        y='vel_diff', 
+        bins=(12, 12), 
+        cmap='viridis', 
+        cbar=True
+    )
+    g.set_axis_labels('Radial Separation [kpc]', r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)
+    #g.fig.suptitle('Heatmaps by Morphological Class', y=1.02, fontsize=12)
+
+    for ax, title in zip(g.axes.flat, g.col_names):
+        ax.set_title(f'Morphology = {title_mapping[title]}', fontsize=16)
+    for ax in g.axes.flat:
+        ax.tick_params(labelsize=12)
+    plt.tight_layout()
+    plt.show()
+
+if show_phase_heat_morph_form == 1:
+    title_mapping = {'ef': 'Star-Forming Elliptical', 'sf': 'Star-Forming Spiral', 'eq': 'Quiescent Elliptical', 'sq': 'Quiescent Spiral'}
     df = pd.DataFrame({
         'radial_sep': radial_sep_list,
         'vel_diff': vel_diff_list,
@@ -768,8 +806,8 @@ if show_phase_heat_morph == 1:
     g = sns.FacetGrid(
         df, 
         col='morph',  # Split by category
-        col_order=['ef', 'sf', 'eq', 'sq', 'uu'],  # Ensure consistent order
-        col_wrap=3,  # Adjust layout
+        col_order=['ef', 'sf', 'eq', 'sq'],  # Ensure consistent order
+        col_wrap=2,  # Adjust layout
         height=4, 
         aspect=1.2
     )
@@ -777,16 +815,21 @@ if show_phase_heat_morph == 1:
         sns.histplot, 
         x='radial_sep', 
         y='vel_diff', 
-        bins=(25, 25), 
+        bins=(12, 12), 
         cmap='viridis', 
         cbar=True
     )
     g.set_axis_labels('Radial Separation [kpc]', r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)
-    g.fig.suptitle('Heatmaps by Morphological Class', y=1.02, fontsize=14)
+    #g.fig.suptitle('Heatmaps by Morphological Class', y=1.02, fontsize=12)
+    for ax, title in zip(g.axes.flat, g.col_names):
+        ax.set_title(f'Morphology = {title_mapping[title]}', fontsize=16)
+    for ax in g.axes.flat:
+        ax.tick_params(labelsize=12)
     plt.tight_layout()
     plt.show() 
 
 if show_phase_heat_forming == 1:
+    title_mapping = {'q': 'Quiescent', 'f': 'Star-Forming'}
     # Create DataFrame
     df = pd.DataFrame({
         'radial_sep': radial_sep_list,
@@ -807,20 +850,20 @@ if show_phase_heat_forming == 1:
         sns.histplot, 
         x='radial_sep', 
         y='vel_diff', 
-        bins=(25, 25), 
+        bins=(12, 12), 
         cmap='viridis', 
         cbar=True
     )
     g.set_axis_labels(
         'Radial Separation [kpc]', 
         r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', 
-        fontsize=16
+        fontsize=12
     )
     for ax, title in zip(g.axes.flat, g.col_names):
-        ax.set_title(f'Star Forming Status = {title}', fontsize=18)
+        ax.set_title(f'Star Forming Status = {title_mapping[title]}', fontsize=16)
     for ax in g.axes.flat:
-        ax.tick_params(labelsize=16)
-    g.fig.suptitle('Heatmaps by Star Forming Status', y=0.95, fontsize=20)
+        ax.tick_params(labelsize=12)
+    #g.fig.suptitle('Heatmaps by Star Forming Status', y=0.95, fontsize=20)
     g.fig.subplots_adjust(top=0.9)
     
     plt.show() 

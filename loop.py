@@ -6,6 +6,7 @@ from astropy.io import fits
 import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 from functions import sine_function, sine_function_2, chi_squared, assign_morph, calculate_theta
+import json
 
 max_z = 0.125 #Maximum redshift in the sample.
 min_lx = 1e43 #Minimum x-ray luminosity for clusters.
@@ -27,8 +28,8 @@ debiaseds = [0, 1]
 bin_sizes = [20, 30, 45, 60]
 phys_seps = [1000, 1250, 1500, 1600, 1750, 1800, 1900, 2000, 2100, 2250, 2500, 3000]
 min_phys_seps = [0]
-sfr_thresholds = [-10.75, -11.0, -11.25, -11.5, -11.75]
-min_lxs = [1e43, 2e43, 2.5e43, 3e43, 3.5e43, 4e43]
+sfr_thresholds = [-11.0, -11.25, -11.5]
+min_lxs = [3e43]
 
 
 total_iterations = (len(classification_thresholds) * len(debiaseds) * len(bin_sizes) * len(phys_seps) * len(min_phys_seps) * len(min_lxs) * len(sfr_thresholds))
@@ -352,6 +353,17 @@ for classification_threshold in classification_thresholds:
                                 best_sq_sigma = popt_sq_frac[0] / np.sqrt(pcov_sq_frac[0,0])
                             if abs((popt_sq_frac[0]) / np.sqrt(pcov_sq_frac[0,0])) > high_sigma:
                                 high_sq_sigma_params.append({"Sigma": abs((popt_sq_frac[0]) / np.sqrt(pcov_sq_frac[0,0])), "Classification": classification_threshold, "Debiased": debiased, "Bin Size": bin_size, "Max Physical Separation": phys_sep, "Min Physical Separation": min_phys_sep, "Max Velocity": max_vel, "Min Velocity": min_vel, "Min Lx": min_lx, "Number of satellites in sample": len(sat_majoraxis_list), "SFR Threshold": sfr_threshold})
+results = {
+    "Best sigma for ef fraction": best_ef_sigma,
+    "Best parameters for ef fraction sigma": best_ef_sigma_params,
+    f"Parameters for ef sigma values > {high_sigma}": high_ef_sigma_params,
+
+    "Best sigma for sq fraction": best_sq_sigma,
+    "Best parameters for sq fraction sigma": best_sq_sigma_params,
+    f"Parameters for sq sigma values > {high_sigma}": high_sq_sigma_params,
+}
+with open("results.json", "w") as f:
+    json.dump(results, f, indent=4)
 
 print("Best parameters for ef fraction amplitude:", best_ef_params)
 print("Best amplitude value for ef fraction:", best_ef_amplitude)

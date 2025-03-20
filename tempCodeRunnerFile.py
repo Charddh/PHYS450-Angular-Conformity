@@ -1,1 +1,1 @@
-3000
+trialY_avgsfr
