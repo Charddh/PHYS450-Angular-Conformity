@@ -6,6 +6,7 @@ from astropy.io import fits
 import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 from functions import sine_function, sine_function_2, sine_function_3, cosine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
+import matplotlib.collections as mcollections
 
 max_z = 0.125 #Maximum redshift in the sample.
 min_lx = 1e43 #Minimum x-ray luminosity for clusters.
@@ -19,13 +20,9 @@ debiased = 1 #If 1, will use debiased classifications. Else, will use raw classi
 phys_sep = 2250 #Maximum physical separation in kpc between BCG and satellite galaxies.
 min_phys_sep = 0 #Minimum physical separation in kpc between BCG and satellite galaxies.
 
-show_mass_z = 0
+show_mass_z = 1
 show_sSFR_mass = 1
 
-signal_to_noise = 1 #Minimum signal-to-noise ratio for galaxy spectra.
-axis_bin = 60
-mergers = ['1_9772', '1_1626', '2_3729', '1_5811', '1_1645', '1_9618', '1_4456', '2_19468']
-binaries = ['2_13471', '1_12336', '1_9849', '1_21627', '2_1139', '1_23993', '2_3273', '2_11151', '1_14486', '1_4409', '1_14573', '1_14884', '1_5823', '1_14426']
 #Open the cluster FITS file and retrieve the data from the second HDU (Header Data Unit).
 
 cluster_data = fits.open("catCluster-SPIDERS_RASS_CLUS-v3.0.fits")[1].data
@@ -52,28 +49,28 @@ gz_s_n = gz_df['SN_MEDIAN'].values
 
 if show_mass_z == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi = 200)
-    ax.scatter(gz_z, gz_mass, label="Galaxy", color="black", marker = 'o', s = 5, linewidth = 0.5, linestyle = 'None', alpha = 0.25)
-    ax.set_ylabel(r'$\log ( M_*/M_{\odot})$', fontsize=16)
-    ax.set_xlabel("Redshift (z)", fontsize=16)
-    ax.axvline(x=0.125, color='grey', linestyle='--', linewidth=1.5, label="z = 0.125")
-    ax.legend()
-    ax.grid(axis="y", linestyle="--", alpha=0.7)
-    #ax.set_ylim(-13, -10.5)
-    ax.set_xlim(0, 0.32)
-    ax.legend(fontsize=14)
-    plt.tick_params(axis='both', labelsize=12)
+    ax.scatter(gz_z, gz_mass, label="Galaxy", color="#555555", marker = 'o', s = 5, linewidth = 0.5, linestyle = 'None', alpha = 0.25)
+    ax.set_ylabel(r'$\log ( M_*/M_{\odot})$', fontsize=20)
+    ax.set_xlabel("Redshift (z)", fontsize=20)
+    ax.axvline(x=0.11, color='black', linestyle='--', linewidth=1.5, label="z = 0.11")
+    ax.axhline(y=10, color='black', linestyle=':', linewidth=1.5, label=r'$\log ( M_*/M_{\odot})$ = 10')
+    ax.legend(fontsize=18, markerscale=5)
+    #ax.grid(axis="y", linestyle="-", alpha=0.8, color="#333333")
+    ax.set_ylim(8, 12)
+    ax.set_xlim(0, 0.35)
+    plt.tick_params(axis='both', labelsize=16)
     plt.show()
 
 if show_sSFR_mass == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi = 200)
-    ax.scatter(gz_mass, gz_sfr, label="Galaxy", color="black", marker = 'o', s = 5, linewidth = 0.5, linestyle = 'None', alpha = 0.15)
-    ax.set_xlabel(r'$\log ( M_*/M_{\odot})$', fontsize=16)
-    ax.set_ylabel(r"sSFR [yr$^{-1}$]", fontsize=16)
-    ax.axvline(x=0.125, color='grey', linestyle='--', linewidth=1.5, label="z = 0.125")
-    ax.legend()
-    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.scatter(gz_mass, gz_sfr, label="Galaxy", color="#555555", marker = 'o', s = 5, linewidth = 0.5, linestyle = 'None', alpha = 0.15)
+    ax.set_xlabel(r'$\log ( M_*/M_{\odot})$', fontsize=20)
+    ax.set_ylabel(r"sSFR [yr$^{-1}$]", fontsize=20)
+    ax.axvline(x=10, color='black', linestyle='--', linewidth=1.5, label=r'$\log ( M_*/M_{\odot})$ = 10')
+    ax.axhline(y=-11, color='black', linestyle=':', linewidth=1.5, label=r"sSFR = -11 yr$^{-1}$")
+    ax.legend(fontsize=18, markerscale=5)
+    #ax.grid(axis="y", linestyle="-", alpha=0.8, color="#333333")
     ax.set_ylim(-14, -7)
-    ax.set_xlim(7, 13)
-    ax.legend(fontsize=14)
-    plt.tick_params(axis='both', labelsize=12)
-    plt.show()    
+    ax.set_xlim(7.5, 12.5)
+    plt.tick_params(axis='both', labelsize=16)
+    plt.show()

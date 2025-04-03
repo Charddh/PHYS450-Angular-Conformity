@@ -5,33 +5,71 @@ import scipy.optimize as opt
 from astropy.io import fits
 import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
-from functions import sine_function, sine_function_2, sine_function_3, cosine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
-
+from functions import sine_function, calculate_r200, sine_function_2, sine_function_3, calculate_radial_distance, calculate_velocity_distance, cosine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
 definate_mergers = ['1_9618']
-mergers = ['1_9772', '1_1626', '2_3729', '1_5811', '1_1645', '1_9618', '1_4456', '2_19468']
+potential_mergers = ['1_9772', '1_1626', '2_3729', '1_5811', '1_1645', '1_9618', '1_4456', '2_19468']
 binaries_mergers = ['2_13471', '1_12336', '1_9849', '1_21627', '2_1139', '1_23993', '2_3273', '2_11151', '1_14486', '1_4409', '1_14573', '1_14884', '1_5823', '1_14426', '1_9772', '1_1626', '2_3729', '1_5811', '1_1645', '1_9618', '1_4456', '2_19468']
-max_z = 0.125 #Maximum redshift in the sample.
-min_lx = 2e43 #Minimum x-ray luminosity for clusters.
+
+classification_threshold = 1 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
+debiased = 0 #If 1, will use debiased classifications. Else, will use raw classifications.
 bin_size = 60 #Size in degrees of the bins.
+phys_sep = 2750 #Maximum physical separation in kpc between BCG and satellite galaxies.
+min_phys_sep = 0 #Minimum physical separation in kpc between BCG and satellite galaxies.
+min_lx = 3.8e43 #Minimum x-ray luminosity for clusters.
+sfr_threshold = -11 #Threshold of specific star formation rate considered as the boundary between active and quiescent galaxies.
+max_z = 0.115 #Maximum redshift in the sample.
+min_vel_diff = 0
+
+use_r200 = 1
+max_r200 = 1.5
+min_r200 = 0
+
 axis_bin = 60 #Size in degrees of the axis bins.
 sfr_bin_size = 60 #Size in degrees of the bins for the SFR plot.
 min_satellite_mass = 10.2 #Minimum satellite galaxy mass.
+#max_satellite_mass = 11.5 #Maximum satellite galaxy mass.
 max_satellite_mass = 11.5 #Maximum satellite galaxy mass.
-classification_threshold = 0.5 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
-sfr_threshold = -11.0 #Threshold of specific star formation rate considered as the boundary between active and quiescent galaxies.
-debiased = 1 #If 1, will use debiased classifications. Else, will use raw classifications.
-phys_sep = 1750 #Maximum physical separation in kpc between BCG and satellite galaxies.
-min_phys_sep = 0 #Minimum physical separation in kpc between BCG and satellite galaxies.
 mergers = ['1_9618', '1_1626', '1_5811', '1_1645']
 
-show_elliptical = 1 #If 1, will show the elliptical fraction plot.
-show_quiescent = 1 #If 1, will show the quiescent fraction plot.
-show_ef = 1 #If 1, will show the star forming elliptical fraction plot.
-show_sq = 1 #If 1, will show the quiescent spiral fraction plot.
-show_ssfr = 0
+show_qs = 0
+show_fs = 0
+show_q_binom = 1
+show_sq_binom = 0 #If 1, will show the quiescent spiral fraction plot.
+show_eq_binom = 0 #If 1, will show the star forming elliptical fraction plot.
+show_phase_heat = 1
+show_phase_combined = 0
+
+phase_bin_size = 0.6
+
+restricted = 1
+
+show_elliptical = 0 #If 1, will show the elliptical fraction plot.
+show_quiescent = 0 #If 1, will show the quiescent fraction plot.
 
 signal_to_noise = 1 #Minimum signal-to-noise ratio for galaxy spectra.
 axis_bin = 60
+
+show_eq_phase = 0
+show_sq_phase = 0
+show_q_phase = 0
+show_qs_phase = 0
+show_fs_phase = 0
+show_phase_space = 0
+show_phase_space_r200 = 0
+show_ef = 0 #If 1, will show the star forming elliptical fraction plot.
+show_ef_binom = 0 #If 1, will show the star forming elliptical fraction plot.
+show_eq = 0 #If 1, will show the star forming elliptical fraction plot.
+show_sq = 0 #If 1, will show the quiescent spiral fraction plot.
+show_sf = 0 #If 1, will show the quiescent spiral fraction plot.
+show_sf_binom = 0 #If 1, will show the quiescent spiral fraction plot.
+show_q = 0 #If 1, will show the quiescent fraction plot.
+show_f = 0 #If 1, will show the star forming fraction plot.
+show_f_binom = 0
+show_e = 0 #If 1, will show the elliptical fraction plot.
+show_e_binom = 0 #If 1, will show the elliptical fraction plot.
+show_s = 0 #If 1, will show the spiral fraction plot.
+show_s_binom = 0 #If 1, will show the spiral fraction plot.
+show_ssfr = 0
 
 #Open the cluster FITS file and retrieve the data from the second HDU (Header Data Unit).
 
@@ -53,17 +91,23 @@ cluster_df2 = cluster_df[(cluster_df['SCREEN_CLUZSPEC'] < max_z) & (cluster_df['
 cluster_df2.loc[:, "CLUS_ID"] = cluster_df2["CLUS_ID"].astype(str).str.strip().str.replace(" ", "")
 #Extract relevant columns from the filtered clusters DataFrame.
 cluster_id = cluster_df2['CLUS_ID'].values
-cluster_ra = cluster_df2['RA'].values
-cluster_dec = cluster_df2['DEC'].values
-cluster_z = cluster_df2['SCREEN_CLUZSPEC'].values
 #Extract relevant columns from the bcg dataframe.
-bcg_df2 = bcg_df[bcg_df['CLUS_ID'].isin(cluster_id)]
+
+bcg_df2 = bcg_df.merge(
+    cluster_df2[['CLUS_ID', 'LX0124']],  # Columns to transfer
+    on='CLUS_ID',                        # Merge key
+    how='inner',                         # Keep only matching clusters
+    suffixes=('', '_cluster')            # Avoid column name conflicts
+)
+#bcg_df2 = bcg_df[bcg_df['CLUS_ID'].isin(cluster_id)]
 
 reduced_clusters_id = bcg_df2['CLUS_ID'].values
 reduced_clusters_ra = bcg_df2['RA_BCG'].values
 reduced_clusters_dec = bcg_df2['DEC_BCG'].values
 reduced_clusters_z = bcg_df2['CLUZSPEC'].values
 reduced_clusters_pa = bcg_df2['GAL_sdss_i_modSX_C2_PA'].values
+reduced_clusters_lx = bcg_df2['LX0124'].values
+reduced_clusters_r200 = np.array([calculate_r200(lx) for lx in reduced_clusters_lx])
 
 #Extract relevant columns from the galaxy zoo dataframe.
 gz_id = gz_df['SPECOBJID_1'].values
@@ -104,28 +148,59 @@ angular_separation = np.sqrt((ra_diff ** 2) * (np.cos(np.radians(reduced_cluster
 
 #Number of degrees corresponding to 1 kpc at the redshift of each cluster.
 degrees_per_kpc = (1 / 3600) * cosmo.arcsec_per_kpc_proper(reduced_clusters_z[:, None]).value
-
-if 0 <= phys_sep <= 3000:
-    max_vel = -0.43 * phys_sep + 2000
-if 3000 < min_phys_sep < 5000:
-    max_vel = 500
-
-#Apply the selection criteria (angular separation and redshift difference).
-if 0 < min_phys_sep <= 3000:
-    min_vel = -0.43 * min_phys_sep + 2000
-    selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_kpc) & (angular_separation > min_phys_sep * degrees_per_kpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) & (gz_s_n > signal_to_noise) & (z_diff > min_vel / 3e5)
-elif min_phys_sep == 0:
-    selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_kpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) & (gz_s_n > signal_to_noise) & (gz_mass < max_satellite_mass)
-elif 3000 < min_phys_sep < 5000:
-    min_vel = 500
-    selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_kpc) & (angular_separation > min_phys_sep * degrees_per_kpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) & (gz_s_n > signal_to_noise) & (z_diff > min_vel / 3e5)    
+phys_sep_galaxy = angular_separation / degrees_per_kpc
+r200_sep_galaxy = phys_sep_galaxy / reduced_clusters_r200[:, None]
+"""
+if restricted == 1:
+    max_vel = np.where(
+        (phys_sep_galaxy >= 0) & (phys_sep_galaxy <= 3000),
+        -0.43 * phys_sep_galaxy + 2000,
+        np.where(
+            (phys_sep_galaxy > 3000) & (phys_sep_galaxy < 5000),
+            500,
+            np.nan))
 else:
-    raise ValueError("min_phys_sep must be between 0 and 5000")
+    max_vel = np.where(
+    (phys_sep_galaxy >= 0) & (phys_sep_galaxy <= 3000),
+    -0.43 * phys_sep_galaxy + 2000,
+    np.where(
+        (phys_sep_galaxy > 3000),
+        np.inf,
+        np.nan))"""
+
+if restricted == 1:
+    max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 2),-750 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 2) & (r200_sep_galaxy < 4),500,np.nan))
+
+else:
+    max_vel = np.where(
+    (r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 3),
+    -500 * r200_sep_galaxy + 2000,
+    np.where(
+        (r200_sep_galaxy > 3),
+        20000,
+        np.nan))
+
+if use_r200 == 1:
+    selected_galaxies_mask = (
+        (r200_sep_galaxy <= max_r200) & 
+        (r200_sep_galaxy > min_r200) &
+        (z_diff < max_vel / 3e5) &
+        (gz_mass > min_satellite_mass) &
+        (gz_mass < max_satellite_mass) &
+        (gz_s_n > signal_to_noise) &
+        (z_diff > min_vel_diff / 3e5))
+else:
+    selected_galaxies_mask = (
+        (phys_sep_galaxy <= phys_sep) & 
+        (phys_sep_galaxy > min_phys_sep) &
+        (z_diff < max_vel / 3e5) &
+        (gz_mass > min_satellite_mass) &
+        (gz_mass < max_satellite_mass) &
+        (gz_s_n > signal_to_noise) &
+        (z_diff > min_vel_diff / 3e5))
 
 selected_counts = [np.sum(selected_galaxies_mask[i]) for i in range(len(reduced_clusters_ra))]
 print("Sel", sum(selected_counts))
-if all(count < 2 for count in selected_counts):
-    print("Not enough data points, skipping iteration.")
 
 #Create a list of Galaxy data for each cluster.
 reduced_clusters_locals_id = [gz_id[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
@@ -140,14 +215,12 @@ reduced_clusters_locals_sfr16 = [gz_sfr16[selected_galaxies_mask[i]] for i in ra
 reduced_clusters_locals_sfr84 = [gz_sfr84[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
 
 #Create a dataframe containing the bcg data with corresponding satellite data.
-df_bcg = pd.DataFrame({'bcg_id': reduced_clusters_id,'bcg_ra': reduced_clusters_ra,'bcg_dec': reduced_clusters_dec,'bcg_z': reduced_clusters_z, 'bcg_sdss_pa': reduced_clusters_pa, 'sat_id': reduced_clusters_locals_id, 'sat_ra': reduced_clusters_locals_ra, 'sat_dec': reduced_clusters_locals_dec, 'sat_elliptical': reduced_clusters_locals_elliptical, 'sat_spiral': reduced_clusters_locals_spiral, 'sat_mass': reduced_clusters_locals_mass, 'sat_sfr': reduced_clusters_locals_sfr, 'sat_sfr16': reduced_clusters_locals_sfr16, 'sat_sfr84': reduced_clusters_locals_sfr84})
+df_bcg = pd.DataFrame({'bcg_id': reduced_clusters_id,'bcg_ra': reduced_clusters_ra,'bcg_dec': reduced_clusters_dec,'bcg_z': reduced_clusters_z, 'bcg_sdss_pa': reduced_clusters_pa, 'bcg_r200': reduced_clusters_r200, 'sat_id': reduced_clusters_locals_id, 'sat_ra': reduced_clusters_locals_ra, 'sat_dec': reduced_clusters_locals_dec, 'sat_z': reduced_clusters_locals_z, 'sat_elliptical': reduced_clusters_locals_elliptical, 'sat_spiral': reduced_clusters_locals_spiral, 'sat_mass': reduced_clusters_locals_mass, 'sat_sfr': reduced_clusters_locals_sfr, 'sat_sfr16': reduced_clusters_locals_sfr16, 'sat_sfr84': reduced_clusters_locals_sfr84})
 clusters_df = pd.DataFrame({'bcg_id': reduced_clusters_id,'bcg_ra': reduced_clusters_ra,'bcg_dec': reduced_clusters_dec, 'bcg_sdss_pa': reduced_clusters_pa})
 clusters_df.to_csv('bcg_data.csv', index=False)
 df_bcg["bcg_id"] = df_bcg["bcg_id"].str.strip()
 angle_df = pd.read_csv('BCGAngleOffset.csv')
 angle_df["clus_id"] = angle_df["clus_id"].str.strip()
-#print("df_bcg", df_bcg["bcg_id"][~df_bcg["bcg_id"].isin(angle_df["clus_id"])])
-#print("Length of df_bcg['bcg_id']:", len(df_bcg["bcg_id"]))
 
 missing_ids = df_bcg["bcg_id"][~df_bcg["bcg_id"].isin(angle_df["clus_id"])]
 
@@ -156,17 +229,9 @@ merged_df['corrected_pa'] = ((((90 - merged_df['spa']) % 360) - merged_df['bcg_s
 
 merged_df['theta'] = merged_df.apply(lambda row: calculate_theta(row['bcg_ra'], row['bcg_dec'], row['sat_ra'], row['sat_dec']), axis=1)
 merged_df['sat_majoraxis_angle'] = merged_df.apply(lambda row: [((row['corrected_pa'] - theta) % 360) % 180 for theta in row['theta']], axis=1)
-
-satellite_df = pd.DataFrame({
-    "clus_id": merged_df["clus_id"],
-    "bcg_ra": merged_df["bcg_ra"],
-    "bcg_dec": merged_df["bcg_dec"],
-    "corrected_pa": merged_df["corrected_pa"],
-    "sat_ra": merged_df["sat_ra"],
-    "sat_dec": merged_df["sat_dec"],
-    "theta": merged_df["theta"],
-    "sat_majoraxis_angle": merged_df["sat_majoraxis_angle"]})
-satellite_df.to_csv('satellite.csv', index=False)
+merged_df['radial_sep'] = merged_df.apply(lambda row: calculate_radial_distance(row['bcg_ra'], row['bcg_dec'], row['bcg_z'], row['sat_ra'], row['sat_dec']), axis=1)
+merged_df['vel_diff'] = merged_df.apply(lambda row: calculate_velocity_distance(row['bcg_z'], row['sat_z']), axis=1)
+merged_df['r/r200'] = merged_df['radial_sep'] / merged_df['bcg_r200']
 
 if classification_threshold == 1:
     merged_df[['sat_elliptical', 'sat_spiral']] = merged_df.apply(
@@ -186,10 +251,17 @@ sat_spiral_list = np.concatenate(merged_df['sat_spiral'].values)
 sat_mass_list = np.concatenate(merged_df['sat_mass'].values)
 star_forming_list = np.concatenate(merged_df['star_forming'].values)
 quiescent_list = np.concatenate(merged_df['quiescent'].values)
+vel_diff_list = np.concatenate(merged_df['vel_diff'].values)
+radial_sep_list = np.concatenate(merged_df['radial_sep'].values)
 sfr_list = np.concatenate(merged_df['sat_sfr'].values)
 sfr16_list = np.concatenate(merged_df['sat_sfr16'].values)
 sfr84_list = np.concatenate(merged_df['sat_sfr84'].values)
 sfr_error = (sfr84_list - sfr16_list) / 2
+r200_list = np.concatenate(merged_df['r/r200'].values)
+
+
+print("max r200:", max(r200_list))
+
 
 print("number of satellites in sample", len(sat_majoraxis_list))
 
@@ -213,10 +285,18 @@ morph_forming_list = [
     "sf" if morph == "s" and sfr == "f" else
     "eq" if morph == "e" and sfr == "q" else
     "sq" if morph == "s" and sfr == "q" else
+    "uq" if morph == "u" and sfr == "q" else
+    "uf" if morph == "u" and sfr == "f" else
     "uu"
     for morph, sfr in zip(sat_type_list, sfr_type_list)]
 
-data = {"angles": sat_majoraxis_list, "types": sat_type_list, "morph_sfr": morph_forming_list}
+vel_diff   = np.array(vel_diff_list)
+r200_sep = np.array(r200_list)
+sat_type   = np.array(sat_type_list)
+sfr_type = np.array(sfr_type_list)
+morph_forming = np.array(morph_forming_list)
+
+data = {"angles": sat_majoraxis_list, "types": sat_type_list, "morph_sfr": morph_forming_list, "sep": r200_list}
 df=pd.DataFrame(data)
 df["spiral_angles"] = df["angles"].where(df["types"] == "s")
 df["elliptical_angles"] = df["angles"].where(df["types"] == "e")
@@ -229,12 +309,30 @@ df["ef_angles"] = df["angles"].where(df["morph_sfr"] == "ef")
 df["sf_angles"] = df["angles"].where(df["morph_sfr"] == "sf")
 df["eq_angles"] = df["angles"].where(df["morph_sfr"] == "eq")
 df["sq_angles"] = df["angles"].where(df["morph_sfr"] == "sq")
+df["uq_angles"] = df["angles"].where(df["morph_sfr"] == "uq")
+df["uf_angles"] = df["angles"].where(df["morph_sfr"] == "uf")
 df["uu_angles"] = df["angles"].where(df["morph_sfr"] == "uu")
 ef = df["ef_angles"].dropna().reset_index(drop=True)
 sf = df["sf_angles"].dropna().reset_index(drop=True)
 eq = df["eq_angles"].dropna().reset_index(drop=True)
 sq = df["sq_angles"].dropna().reset_index(drop=True)
+uq = df["uq_angles"].dropna().reset_index(drop=True)
+uf = df["uf_angles"].dropna().reset_index(drop=True)
 uu = df["uu_angles"].dropna().reset_index(drop=True)
+df["ef_sep"] = df["sep"].where(df["morph_sfr"] == "ef")
+df["sf_sep"] = df["sep"].where(df["morph_sfr"] == "sf")
+df["eq_sep"] = df["sep"].where(df["morph_sfr"] == "eq")
+df["sq_sep"] = df["sep"].where(df["morph_sfr"] == "sq")
+df["uu_sep"] = df["sep"].where(df["morph_sfr"] == "uu")
+df["q_sep"] = df["sep"].where(df["morph_sfr"].isin(["eq", "sq", "uq"]))
+df["f_sep"] = df["sep"].where(df["morph_sfr"].isin(["ef", "sf", "uf"]))
+phase_ef = df["ef_sep"].dropna().reset_index(drop=True)
+phase_sf = df["sf_sep"].dropna().reset_index(drop=True)
+phase_eq = df["eq_sep"].dropna().reset_index(drop=True)
+phase_sq = df["sq_sep"].dropna().reset_index(drop=True)
+phase_uu = df["uu_sep"].dropna().reset_index(drop=True)
+phase_q = df["q_sep"].dropna().reset_index(drop=True)
+phase_f = df["f_sep"].dropna().reset_index(drop=True)
 
 axis_data = {"angles": axis_sat_majoraxis_list, "types": sat_type_list, "morph_sfr": morph_forming_list}
 axis_df=pd.DataFrame(axis_data)
@@ -296,28 +394,146 @@ ef_hist, _ = np.histogram(ef, bins=bins)
 sf_hist, _ = np.histogram(sf, bins=bins)
 eq_hist, _ = np.histogram(eq, bins=bins)
 sq_hist, _ = np.histogram(sq, bins=bins)
+uq_hist, _ = np.histogram(uq, bins=bins)
+uf_hist, _ = np.histogram(uf, bins=bins)
 uu_hist, _ = np.histogram(uu, bins=bins)
 ef_err = np.sqrt(ef_hist)
 sf_err = np.sqrt(sf_hist)
 eq_err = np.sqrt(eq_hist)
 sq_err = np.sqrt(sq_hist)
+uq_err = np.sqrt(uq_hist)
+uf_err = np.sqrt(uf_hist)
 uu_err = np.sqrt(uu_hist)
-ef_fraction = np.where(ef_hist + eq_hist + uu_hist > 0, (ef_hist / (ef_hist + eq_hist + uu_hist)), 0)
-sq_fraction = np.where(sq_hist + sf_hist + uu_hist> 0, (sq_hist / (sq_hist + sf_hist + uu_hist)), 0)
-ef_fraction_err = np.where(ef_hist + eq_hist + uu_hist> 0, np.sqrt(ef_hist) / (ef_hist + eq_hist + uu_hist), np.nan)
-sq_fraction_err = np.where(sq_hist + sf_hist + uu_hist> 0, np.sqrt(sq_hist) / (sq_hist + sf_hist + uu_hist), np.nan)
+ef_fraction = np.where(ef_hist + eq_hist > 0, (ef_hist / (ef_hist + eq_hist)), 0)
+eq_fraction = np.where(ef_hist + eq_hist > 0, (eq_hist / (ef_hist + eq_hist)), 0)
+sq_fraction = np.where(sq_hist + sf_hist > 0, (sq_hist / (sq_hist + sf_hist)), 0)
+sf_fraction = np.where(sq_hist + sf_hist > 0, (sf_hist / (sq_hist + sf_hist)), 0)
+total_gals = ef_hist + eq_hist + sq_hist + sf_hist + uf_hist + uq_hist + uu_hist
+total_ellipticals = ef_hist + eq_hist
+total_spirals = sf_hist + sq_hist
+total_morph = ef_hist + eq_hist + sq_hist + sf_hist
+total_forming = ef_hist + sf_hist
+total_quiescent = eq_hist + sq_hist
+q_fraction = np.where(total_gals > 0, ((eq_hist + sq_hist + uq_hist) / (total_gals)), 0)
+f_fraction = np.where(total_gals > 0, ((ef_hist + sf_hist + uf_hist) / (total_gals)), 0)
+e_fraction = np.where(total_morph > 0, ((eq_hist + ef_hist) / (total_morph)), 0)
+s_fraction = np.where(total_morph > 0, ((sq_hist + sf_hist) / (total_morph)), 0)
+fs_fraction = np.where(total_forming > 0, (sf_hist / (total_forming)), 0)
+qs_fraction = np.where(total_quiescent > 0, (sq_hist / (total_quiescent)), 0)
+ef_fraction_err = np.where(ef_hist + eq_hist > 0, np.sqrt(ef_hist) / (ef_hist + eq_hist), np.nan)
+ef_fraction_err_binom = np.where(total_ellipticals > 0, np.sqrt((ef_hist / total_ellipticals) * (1 - (ef_hist / total_ellipticals)) / total_ellipticals), np.nan)
+eq_fraction_err = np.where(ef_hist + eq_hist > 0, np.sqrt(eq_hist) / (ef_hist + eq_hist), np.nan)
+eq_fraction_err_binom = np.where(total_ellipticals > 0, np.sqrt((eq_hist / total_ellipticals) * (1 - (eq_hist / total_ellipticals)) / total_ellipticals), np.nan)
+sq_fraction_err = np.where(sq_hist + sf_hist > 0, np.sqrt(sq_hist) / (sq_hist + sf_hist), np.nan)
+sq_fraction_err_binom = np.where(total_spirals > 0, np.sqrt((sq_hist / total_spirals) * (1 - (sq_hist / total_spirals)) / total_spirals), np.nan)
+sf_fraction_err = np.where(sq_hist + sf_hist > 0, np.sqrt(sf_hist) / (sq_hist + sf_hist), np.nan)
+sf_fraction_err_binom = np.where(total_spirals > 0, np.sqrt((sf_hist / total_spirals) * (1 - (sf_hist / total_spirals)) / total_spirals), np.nan)
+q_fraction_err = np.where(total_gals > 0, np.sqrt(eq_hist + sq_hist + uq_hist) / (total_gals), np.nan)
+q_fraction_err_binom = np.where(total_gals > 0, np.sqrt(q_fraction * (1 - q_fraction) / total_gals), np.nan) 
+f_fraction_err = np.where(total_gals > 0, np.sqrt(ef_hist + sf_hist + uf_hist) / (total_gals), np.nan)
+f_fraction_err_binom = np.where(total_gals > 0, np.sqrt(f_fraction * (1 - f_fraction) / total_gals), np.nan) 
+e_fraction_err = np.where(total_morph > 0, np.sqrt(eq_hist + ef_hist) / (total_morph), np.nan)
+e_fraction_err_binom = np.where(total_morph > 0, np.sqrt(e_fraction * (1 - e_fraction) / total_morph), np.nan)
+s_fraction_err = np.where(total_morph > 0, np.sqrt(sq_hist + sf_hist) / (total_morph), np.nan)
+s_fraction_err_binom = np.where(total_morph > 0, np.sqrt(s_fraction * (1 - s_fraction) / total_morph), np.nan)
+fs_fraction_err = np.where(total_forming > 0, np.sqrt(fs_fraction * (1 - fs_fraction) / total_forming), np.nan)
+qs_fraction_err = np.where(total_quiescent > 0, np.sqrt(qs_fraction * (1 - qs_fraction) / total_quiescent), np.nan)
 popt_ef_frac, pcov_ef_frac = opt.curve_fit(sine_function_2, bin_centres, ef_fraction, sigma = ef_fraction_err, p0 = [0.03, 0.03], absolute_sigma = True)
 popt_ef_frac_line, pcov_ef_frac_line = opt.curve_fit(horizontal_line, bin_centres, ef_fraction, sigma = ef_fraction_err, p0 = [0.05], absolute_sigma = True)
+popt_ef_frac_binom, pcov_ef_frac_binom = opt.curve_fit(sine_function_2, bin_centres, ef_fraction, sigma = ef_fraction_err_binom, p0 = [0.03, 0.03], absolute_sigma = True)
+popt_ef_frac_line_binom, pcov_ef_frac_line_binom = opt.curve_fit(horizontal_line, bin_centres, ef_fraction, sigma = ef_fraction_err_binom, p0 = [0.05], absolute_sigma = True)
+popt_eq_frac, pcov_eq_frac = opt.curve_fit(sine_function_2, bin_centres, eq_fraction, sigma = eq_fraction_err, p0 = [0.03, 0.03], absolute_sigma = True)
+popt_eq_frac_line, pcov_eq_frac_line = opt.curve_fit(horizontal_line, bin_centres, eq_fraction, sigma = eq_fraction_err, p0 = [0.05], absolute_sigma = True)
+popt_eq_frac_binom, pcov_eq_frac_binom = opt.curve_fit(sine_function_2, bin_centres, eq_fraction, sigma = eq_fraction_err_binom, p0 = [0.03, 0.03], absolute_sigma = True)
+popt_eq_frac_line_binom, pcov_eq_frac_line_binom = opt.curve_fit(horizontal_line, bin_centres, eq_fraction, sigma = eq_fraction_err_binom, p0 = [0.05], absolute_sigma = True)
 popt_sq_frac, pcov_sq_frac = opt.curve_fit(sine_function_2, bin_centres, sq_fraction, sigma = sq_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
 popt_sq_frac_line, pcov_sq_frac_line = opt.curve_fit(horizontal_line, bin_centres, sq_fraction, sigma = sq_fraction_err, absolute_sigma = True)
+popt_sq_frac_binom, pcov_sq_frac_binom = opt.curve_fit(sine_function_2, bin_centres, sq_fraction, sigma = sq_fraction_err_binom, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_sq_frac_line_binom, pcov_sq_frac_line_binom = opt.curve_fit(horizontal_line, bin_centres, sq_fraction, sigma = sq_fraction_err_binom, absolute_sigma = True)
+popt_sf_frac, pcov_sf_frac = opt.curve_fit(sine_function_2, bin_centres, sf_fraction, sigma = sf_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_sf_frac_line, pcov_sf_frac_line = opt.curve_fit(horizontal_line, bin_centres, sf_fraction, sigma = sf_fraction_err, absolute_sigma = True)
+popt_sf_frac_binom, pcov_sf_frac_binom = opt.curve_fit(sine_function_2, bin_centres, sf_fraction, sigma = sf_fraction_err_binom, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_sf_frac_line_binom, pcov_sf_frac_line_binom = opt.curve_fit(horizontal_line, bin_centres, sf_fraction, sigma = sf_fraction_err_binom, absolute_sigma = True)
+popt_q_frac, pcov_q_frac = opt.curve_fit(sine_function_2, bin_centres, q_fraction, sigma = q_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_q_frac_line, pcov_q_frac_line = opt.curve_fit(horizontal_line, bin_centres, q_fraction, sigma = q_fraction_err, absolute_sigma = True)
+popt_q_frac_binom, pcov_q_frac_binom = opt.curve_fit(sine_function_2, bin_centres, q_fraction, sigma = q_fraction_err_binom, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_q_frac_line_binom, pcov_q_frac_line_binom = opt.curve_fit(horizontal_line, bin_centres, q_fraction, sigma = q_fraction_err_binom, absolute_sigma = True)
+popt_f_frac, pcov_f_frac = opt.curve_fit(sine_function_2, bin_centres, f_fraction, sigma = f_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_f_frac_line, pcov_f_frac_line = opt.curve_fit(horizontal_line, bin_centres, f_fraction, sigma = f_fraction_err, absolute_sigma = True)
+popt_f_frac_binom, pcov_f_frac_binom = opt.curve_fit(sine_function_2, bin_centres, f_fraction, sigma = f_fraction_err_binom, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_f_frac_line_binom, pcov_f_frac_line_binom = opt.curve_fit(horizontal_line, bin_centres, f_fraction, sigma = f_fraction_err_binom, absolute_sigma = True)
+popt_e_frac, pcov_e_frac = opt.curve_fit(sine_function_2, bin_centres, e_fraction, sigma = e_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_e_frac_line, pcov_e_frac_line = opt.curve_fit(horizontal_line, bin_centres, e_fraction, sigma = e_fraction_err, absolute_sigma = True)
+popt_e_frac_binom, pcov_e_frac_binom = opt.curve_fit(sine_function_2, bin_centres, e_fraction, sigma = e_fraction_err_binom, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_e_frac_line_binom, pcov_e_frac_line_binom = opt.curve_fit(horizontal_line, bin_centres, e_fraction, sigma = e_fraction_err_binom, absolute_sigma = True)
+popt_s_frac, pcov_s_frac = opt.curve_fit(sine_function_2, bin_centres, s_fraction, sigma = s_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_s_frac_line, pcov_s_frac_line = opt.curve_fit(horizontal_line, bin_centres, s_fraction, sigma = s_fraction_err, absolute_sigma = True)
+popt_s_frac_binom, pcov_s_frac_binom = opt.curve_fit(sine_function_2, bin_centres, s_fraction, sigma = s_fraction_err_binom, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_s_frac_line_binom, pcov_s_frac_line_binom = opt.curve_fit(horizontal_line, bin_centres, s_fraction, sigma = s_fraction_err_binom, absolute_sigma = True)
+popt_fs_frac, pcov_fs_frac = opt.curve_fit(sine_function_2, bin_centres, fs_fraction, sigma = fs_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_fs_frac_line, pcov_fs_frac_line = opt.curve_fit(horizontal_line, bin_centres, fs_fraction, sigma = fs_fraction_err, absolute_sigma = True)
+popt_qs_frac, pcov_qs_frac = opt.curve_fit(sine_function_2, bin_centres, qs_fraction, sigma = qs_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+popt_qs_frac_line, pcov_qs_frac_line = opt.curve_fit(horizontal_line, bin_centres, qs_fraction, sigma = qs_fraction_err, absolute_sigma = True)
 trialY_ef_frac = sine_function_2(trialX, *popt_ef_frac)
 trialY_ef_frac_line = horizontal_line(trialX, *popt_ef_frac_line)
+trialY_ef_frac_binom = sine_function_2(trialX, *popt_ef_frac_binom)
+trialY_ef_frac_line_binom = horizontal_line(trialX, *popt_ef_frac_line_binom)
+trialY_eq_frac = sine_function_2(trialX, *popt_eq_frac)
+trialY_eq_frac_line = horizontal_line(trialX, *popt_eq_frac_line)
+trialY_eq_frac_binom = sine_function_2(trialX, *popt_eq_frac_binom)
+trialY_eq_frac_line_binom = horizontal_line(trialX, *popt_eq_frac_line_binom)
 trialY_sq_frac = sine_function_2(trialX, *popt_sq_frac)
 trialY_sq_frac_line = horizontal_line(trialX, *popt_sq_frac_line)
+trialY_sq_frac_binom = sine_function_2(trialX, *popt_sq_frac_binom)
+trialY_sq_frac_line_binom = horizontal_line(trialX, *popt_sq_frac_line_binom)
+trialY_sf_frac = sine_function_2(trialX, *popt_sf_frac)
+trialY_sf_frac_line = horizontal_line(trialX, *popt_sf_frac_line)
+trialY_sf_frac_binom = sine_function_2(trialX, *popt_sf_frac_binom)
+trialY_sf_frac_line_binom = horizontal_line(trialX, *popt_sf_frac_line_binom)
+trialY_q_frac = sine_function_2(trialX, *popt_q_frac)
+trialY_q_frac_line = horizontal_line(trialX, *popt_q_frac_line)
+trialY_q_frac_binom = sine_function_2(trialX, *popt_q_frac_binom)
+trialY_q_frac_line_binom = horizontal_line(trialX, *popt_q_frac_line_binom)
+trialY_f_frac = sine_function_2(trialX, *popt_f_frac)
+trialY_f_frac_line = horizontal_line(trialX, *popt_f_frac_line)
+trialY_f_frac_binom = sine_function_2(trialX, *popt_f_frac_binom)
+trialY_f_frac_line_binom = horizontal_line(trialX, *popt_f_frac_line_binom)
+trialY_e_frac = sine_function_2(trialX, *popt_e_frac)
+trialY_e_frac_line = horizontal_line(trialX, *popt_e_frac_line)
+trialY_e_frac_binom = sine_function_2(trialX, *popt_e_frac_binom)
+trialY_e_frac_line_binom = horizontal_line(trialX, *popt_e_frac_line_binom)
+trialY_s_frac = sine_function_2(trialX, *popt_s_frac)
+trialY_s_frac_line = horizontal_line(trialX, *popt_s_frac_line)
+trialY_s_frac_binom = sine_function_2(trialX, *popt_s_frac_binom)
+trialY_s_frac_line_binom = horizontal_line(trialX, *popt_s_frac_line_binom)
+trialY_fs_frac = sine_function_2(trialX, *popt_fs_frac)
+trialY_fs_frac_line = horizontal_line(trialX, *popt_fs_frac_line)
+trialY_qs_frac = sine_function_2(trialX, *popt_qs_frac)
+trialY_qs_frac_line = horizontal_line(trialX, *popt_qs_frac_line)
 chi2_red_ef_frac = chi2_red(bin_centres, ef_fraction, ef_fraction_err, popt_ef_frac, sine_function_2)
 chi2_red_ef_frac_line = chi2_red(bin_centres, ef_fraction, ef_fraction_err, popt_ef_frac_line, horizontal_line)
+chi2_red_eq_frac = chi2_red(bin_centres, eq_fraction, eq_fraction_err, popt_eq_frac, sine_function_2)
+chi2_red_eq_frac_line = chi2_red(bin_centres, eq_fraction, eq_fraction_err, popt_eq_frac_line, horizontal_line)
 chi2_red_sq_frac = chi2_red(bin_centres, sq_fraction, sq_fraction_err, popt_sq_frac, sine_function_2)
 chi2_red_sq_frac_line = chi2_red(bin_centres, sq_fraction, sq_fraction_err, popt_sq_frac_line, horizontal_line)
+chi2_red_sf_frac = chi2_red(bin_centres, sf_fraction, sf_fraction_err, popt_sf_frac, sine_function_2)
+chi2_red_sf_frac_line = chi2_red(bin_centres, sf_fraction, sf_fraction_err, popt_sf_frac_line, horizontal_line)
+chi2_red_q_frac = chi2_red(bin_centres, q_fraction, q_fraction_err, popt_q_frac, sine_function_2)
+chi2_red_q_frac_line = chi2_red(bin_centres, q_fraction, q_fraction_err, popt_q_frac_line, horizontal_line)
+chi2_red_q_frac_binom = chi2_red(bin_centres, q_fraction, q_fraction_err_binom, popt_q_frac_binom, sine_function_2)
+chi2_red_q_frac_line_binom = chi2_red(bin_centres, q_fraction, q_fraction_err_binom, popt_q_frac_line_binom, horizontal_line)
+chi2_red_f_frac = chi2_red(bin_centres, f_fraction, f_fraction_err, popt_f_frac, sine_function_2)
+chi2_red_f_frac_line = chi2_red(bin_centres, f_fraction, f_fraction_err, popt_f_frac_line, horizontal_line)
+chi2_red_f_frac_binom = chi2_red(bin_centres, f_fraction, f_fraction_err_binom, popt_f_frac_binom, sine_function_2)
+chi2_red_f_frac_line_binom = chi2_red(bin_centres, f_fraction, f_fraction_err_binom, popt_f_frac_line_binom, horizontal_line)
+chi2_red_e_frac = chi2_red(bin_centres, e_fraction, e_fraction_err, popt_e_frac, sine_function_2)
+chi2_red_e_frac_line = chi2_red(bin_centres, e_fraction, e_fraction_err, popt_e_frac_line, horizontal_line)
+chi2_red_e_frac_binom = chi2_red(bin_centres, e_fraction, e_fraction_err_binom, popt_e_frac_binom, sine_function_2)
+chi2_red_e_frac_line_binom = chi2_red(bin_centres, e_fraction, e_fraction_err_binom, popt_e_frac_line_binom, horizontal_line)
+chi2_red_s_frac = chi2_red(bin_centres, s_fraction, s_fraction_err, popt_s_frac, sine_function_2)
+chi2_red_s_frac_line = chi2_red(bin_centres, s_fraction, s_fraction_err, popt_s_frac_line, horizontal_line)
+chi2_red_s_frac_binom = chi2_red(bin_centres, s_fraction, s_fraction_err_binom, popt_s_frac_binom, sine_function_2)
+chi2_red_s_frac_line_binom = chi2_red(bin_centres, s_fraction, s_fraction_err_binom, popt_s_frac_line_binom, horizontal_line)
 
 axis_ef_hist, _ = np.histogram(axis_ef, bins=axis_bins)
 axis_sf_hist, _ = np.histogram(axis_sf, bins=axis_bins)
@@ -360,8 +576,8 @@ sfr_quiescent_errors = np.sqrt(sfr_quiescent_hist)
 sfr_unknown_errors = np.sqrt(sfr_unknown_hist)
 fraction = np.where(spiral_hist + elliptical_hist + unknown_hist > 0, (elliptical_hist / (spiral_hist + elliptical_hist + unknown_hist)), 0)
 fraction_errors = np.where(elliptical_hist + spiral_hist + unknown_hist > 0, np.sqrt(elliptical_hist) / (elliptical_hist + spiral_hist + unknown_hist), np.nan)
-sfr_fraction = np.where(sfr_forming_hist + sfr_quiescent_hist > 0, (sfr_quiescent_hist / (sfr_forming_hist + sfr_quiescent_hist)), 0)
-sfr_fraction_errors = np.where(sfr_quiescent_hist + sfr_forming_hist > 0, np.sqrt(sfr_quiescent_hist) / (sfr_quiescent_hist +  sfr_forming_hist), np.nan)
+sfr_fraction = np.where(sfr_forming_hist + sfr_quiescent_hist + sfr_unknown_hist> 0, (sfr_quiescent_hist / (sfr_forming_hist + sfr_quiescent_hist + sfr_unknown_hist)), 0)
+sfr_fraction_errors = np.where(sfr_quiescent_hist + sfr_forming_hist + sfr_unknown_hist> 0, np.sqrt(sfr_quiescent_hist) / (sfr_quiescent_hist +  sfr_forming_hist + sfr_unknown_hist), np.nan)
 popt_sfr, pcov_sfr = opt.curve_fit(sine_function, sat_majoraxis_list, sfr_list, sigma = sfr_error, p0 = [1, -11, 0], absolute_sigma = True)
 popt_frac, pcov_frac = opt.curve_fit(sine_function_2, bin_centres, fraction, sigma = fraction_errors, p0 = [0.1, 0.75], absolute_sigma = True)
 popt_frac_line, pcov_frac_line = opt.curve_fit(horizontal_line, bin_centres, fraction, sigma = fraction_errors, absolute_sigma = True)
@@ -423,12 +639,116 @@ axis_sfr_mean = axis_sfr_binned / axis_sfr_bin_counts
 axis_sfr_err_binned, _ = np.histogram(axis_sat_majoraxis_list, axis_bins, weights = sfr_error)
 axis_sfr_error_mean = axis_sfr_err_binned / axis_sfr_bin_counts
 
-#axis_popt_avgsfr, axis_pcov_avgsfr = opt.curve_fit(sine_function, axis_bin_centres, axis_sfr_mean, sigma = axis_sfr_error_mean, p0 = [1, -11, 0], absolute_sigma = True)
-#axis_popt_avgsfr_line, axis_pcov_avgsfr_line = opt.curve_fit(horizontal_line, axis_bin_centres, axis_sfr_mean, sigma = axis_sfr_error_mean, absolute_sigma = True)
-#axis_trialY_avgsfr = sine_function(axis_trialX, *axis_popt_avgsfr)
-#axis_trialY_avgsfr_line = horizontal_line(axis_trialX, *axis_popt_avgsfr_line)
-#axis_sfr_chi2_red = chi2_red(axis_bin_centres, axis_sfr_mean, axis_sfr_error_mean, axis_popt_avgsfr, sine_function)
-#axis_sfr_chi2_red_line = chi2_red(axis_bin_centres, axis_sfr_mean, axis_sfr_error_mean, axis_popt_avgsfr_line, horizontal_line)
+phase_bins = np.arange(0, max_r200, phase_bin_size)
+phase_bin_centres = (phase_bins[:-1] + phase_bins[1:]) / 2
+phase_trialX = np.linspace(0, max_r200, 1000)
+phase_ef_hist, _ = np.histogram(phase_ef, bins=phase_bins)
+phase_sf_hist, _ = np.histogram(phase_sf, bins=phase_bins)
+phase_eq_hist, _ = np.histogram(phase_eq, bins=phase_bins)
+phase_sq_hist, _ = np.histogram(phase_sq, bins=phase_bins)
+phase_uu_hist, _ = np.histogram(phase_uu, bins=phase_bins)
+phase_q_hist, _ = np.histogram(phase_q, bins=phase_bins)
+phase_f_hist, _ = np.histogram(phase_f, bins=phase_bins)
+phase_ef_err = np.sqrt(phase_ef_hist)
+phase_sf_err = np.sqrt(phase_sf_hist)
+phase_eq_err = np.sqrt(phase_eq_hist)
+phase_sq_err = np.sqrt(phase_sq_hist)
+phase_uu_err = np.sqrt(phase_uu_hist)
+phase_q_err = np.sqrt(phase_q_hist)
+phase_f_err = np.sqrt(phase_f_hist)
+tot_ellipticals = phase_ef_hist + phase_eq_hist
+tot_spirals = phase_sq_hist + phase_sf_hist
+tot_gals = phase_q_hist + phase_f_hist
+tot_quiescent = phase_eq_hist + phase_sq_hist
+tot_forming = phase_ef_hist + phase_sf_hist
+phase_eq_fraction = np.where(phase_ef_hist + phase_eq_hist > 0, (phase_eq_hist / (phase_ef_hist + phase_eq_hist)), 0)
+phase_sq_fraction = np.where(phase_sq_hist + phase_sf_hist> 0, (phase_sq_hist / (phase_sq_hist + phase_sf_hist)), 0)
+phase_q_fraction = np.where(tot_gals > 0, (phase_q_hist / (tot_gals)), 0)
+phase_qs_fraction = np.where(tot_quiescent > 0, (phase_sq_hist / (tot_quiescent)), 0)
+phase_fs_fraction = np.where(tot_forming > 0, (phase_sf_hist / (tot_forming)), 0)
+
+phase_eq_fraction_err = np.where(tot_ellipticals > 0, np.sqrt((phase_eq_hist / tot_ellipticals) * (1 - (phase_eq_hist / tot_ellipticals)) / tot_ellipticals), np.nan)
+phase_sq_fraction_err = np.where(tot_spirals > 0, np.sqrt((phase_sq_hist / tot_spirals) * (1 - (phase_sq_hist / tot_spirals)) / tot_spirals), np.nan)
+phase_q_fraction_err = np.where(tot_gals > 0, np.sqrt((phase_q_hist / tot_gals) * (1 - (phase_q_hist / tot_gals)) / tot_gals), np.nan)
+phase_qs_fraction_err = np.where(tot_quiescent > 0, np.sqrt((phase_sq_hist / tot_quiescent) * (1 - (phase_sq_hist / tot_quiescent)) / tot_quiescent), np.nan)
+phase_fs_fraction_err = np.where(tot_forming > 0, np.sqrt((phase_sf_hist / tot_forming) * (1 - (phase_sf_hist / tot_forming)) / tot_forming), np.nan)
+
+if show_eq_phase == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(phase_bin_centres, phase_eq_fraction, yerr=phase_eq_fraction_err, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
+    ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Ellipticals", fontsize=16)
+    ax.set_ylim(np.nanmin(phase_eq_fraction) * 0.8, np.nanmax(phase_eq_fraction) * 1.2)
+    plt.tick_params(axis='both', which='major', labelsize=14)
+    plt.tick_params(axis='both', which='minor', labelsize=14)    
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.show()
+
+if show_sq_phase == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(phase_bin_centres, phase_sq_fraction, yerr=phase_sq_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
+    ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Spirals", fontsize=16)
+    ax.set_ylim(np.nanmin(phase_sq_fraction) * 0.8, np.nanmax(phase_sq_fraction) * 1.2)
+    plt.tick_params(axis='both', which='major', labelsize=14)
+    plt.tick_params(axis='both', which='minor', labelsize=14)    
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.show()
+
+if show_q_phase == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(phase_bin_centres, phase_q_fraction, yerr=phase_q_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
+    ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Galaxies", fontsize=16)
+    ax.set_ylim(np.nanmin(phase_q_fraction) * 0.8, np.nanmax(phase_q_fraction) * 1.2)
+    plt.tick_params(axis='both', which='major', labelsize=14)
+    plt.tick_params(axis='both', which='minor', labelsize=14)    
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.show()
+
+if show_qs_phase == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(phase_bin_centres, phase_qs_fraction, yerr=phase_qs_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
+    ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Galaxies Which Are Spirals", fontsize=16)
+    ax.set_ylim(np.nanmin(phase_qs_fraction) * 0.8, np.nanmax(phase_qs_fraction) * 1.2)
+    plt.tick_params(axis='both', which='major', labelsize=14)
+    plt.tick_params(axis='both', which='minor', labelsize=14)    
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.show()
+
+if show_fs_phase == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(phase_bin_centres, phase_fs_fraction, yerr=phase_fs_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
+    ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
+    ax.set_ylabel("Fraction of Star-Forming Galaxies Which Are Spirals", fontsize=16)
+    ax.set_ylim(np.nanmin(phase_fs_fraction) * 0.8, np.nanmax(phase_fs_fraction) * 1.2)
+    plt.tick_params(axis='both', which='major', labelsize=14)
+    plt.tick_params(axis='both', which='minor', labelsize=14)    
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.show()
+
+if show_phase_combined == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(phase_bin_centres, phase_sq_fraction, yerr=phase_sq_fraction_err, marker='o', linestyle='-', color="purple", label="Spiral Quiescent Fraction", capsize=2)
+    ax.errorbar(phase_bin_centres, phase_eq_fraction, yerr=phase_eq_fraction_err, marker='x', linestyle='-', color="blue", label="Elliptical Quiescent Fraction", capsize=2)
+    ax.errorbar(phase_bin_centres, phase_q_fraction, yerr=phase_q_fraction_err, marker='D', linestyle='-', color="orange", label="Quiescent Fraction", capsize=2)
+    ax.errorbar(phase_bin_centres, phase_qs_fraction, yerr=phase_qs_fraction_err, marker='s', linestyle='-', color="grey", label="Quiescent Spiral Fraction", capsize=2)
+    ax.errorbar(phase_bin_centres, phase_fs_fraction, yerr=phase_fs_fraction_err, marker='p', linestyle='-', color="red", label="Star-Forming Spiral Fraction Amplitude", capsize=2)
+
+    ax.set_xlabel(r"R/R$_{200}$", fontsize=18)
+    ax.set_ylabel("Galaxy Fraction", fontsize=18)
+    ax.set_ylim(0, 1.3)
+    plt.tick_params(axis='both', which='major', labelsize=18)
+    plt.tick_params(axis='both', which='minor', labelsize=18)    
+    ax.legend(fontsize=18, frameon=True, facecolor="white", edgecolor="black", framealpha=1)
+    ax.grid(axis="y", linestyle="--", alpha=1, color = 'black')
+    plt.show()    
 
 ## 0-180 plots for elliptical and quiescent fractions.
 """#3 d.o.f.
@@ -655,38 +975,415 @@ plt.show()"""
 #EF fraction
 if show_ef == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
-    ax.errorbar(bin_centres, ef_fraction, yerr=ef_fraction_err, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
-    ax.set_xlabel("Angle (degrees)")
-    ax.set_ylabel("Fraction of Star Forming Ellipticals")
+    ax.errorbar(bin_centres, ef_fraction, yerr=ef_fraction_err, marker='o', linestyle='-', color="purple", label="Star-Forming Elliptical Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Star Forming Ellipticals", fontsize=16)
     #ax.set_title("Fraction of ellipticals which are star forming as a function of angle")
     ax.set_ylim(np.nanmin(ef_fraction) * 0.8, np.nanmax(ef_fraction) * 1.2)
     ax.plot(trialX, trialY_ef_frac_line, 'g-', label = 'Horiztontal Line Fit') 
     ax.plot(trialX, trialY_ef_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_ef_frac[0]:.3f} ± {np.sqrt(pcov_ef_frac[0,0]):.3f})') 
-    ax.legend()
+    ax.legend(fontsize=16)
     ax.grid(axis="y", linestyle="--", alpha=0.7)
     ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
-    # Add a text box near the vertical line
-    ax.text(90, np.nanmax(ef_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=10, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
-    #ax[1].text(0.1, 0.2, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax[1].transAxes, fontsize=8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+    ax.text(90, np.nanmax(ef_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(ef_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(ef_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
     plt.show()
 
+if show_ef_binom == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, ef_fraction, yerr=ef_fraction_err_binom, marker='o', linestyle='-', color="purple", label="Star-Forming Elliptical Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Star Forming Ellipticals (Binomial)", fontsize=16)
+    #ax.set_title("Fraction of ellipticals which are star forming as a function of angle")
+    ax.set_ylim(np.nanmin(ef_fraction) * 0.8, np.nanmax(ef_fraction) * 1.2)
+    ax.plot(trialX, trialY_ef_frac_line_binom, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_ef_frac_binom, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_ef_frac_binom[0]:.3f} ± {np.sqrt(pcov_ef_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(ef_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(ef_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(ef_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
 
-#SQ fraction
+if show_eq == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, eq_fraction, yerr=eq_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Elliptical Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Ellipticals", fontsize=16)
+    #ax.set_title("Fraction of ellipticals which are star forming as a function of angle")
+    ax.set_ylim(np.nanmin(eq_fraction) * 0.8, np.nanmax(eq_fraction) * 1.2)
+    ax.plot(trialX, trialY_eq_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_eq_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_eq_frac[0]:.3f} ± {np.sqrt(pcov_eq_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(eq_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(eq_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(eq_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_eq_binom == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, eq_fraction, yerr=eq_fraction_err_binom, marker='o', linestyle='-', color="purple", label="Quiescent Elliptical Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Ellipticals (Binomial)", fontsize=16)
+    #ax.set_title("Fraction of ellipticals which are star forming as a function of angle")
+    ax.set_ylim(np.nanmin(eq_fraction) * 0.8, np.nanmax(eq_fraction) * 1.2)
+    ax.plot(trialX, trialY_eq_frac_line_binom, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_eq_frac_binom, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_eq_frac_binom[0]:.3f} ± {np.sqrt(pcov_eq_frac_binom[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(eq_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(eq_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(eq_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
 if show_sq == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
-    ax.errorbar(bin_centres, sq_fraction, yerr=sq_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
-    ax.set_xlabel("Angle (degrees)")
-    ax.set_ylabel("Fraction of Quiescent Spirals")
+    ax.errorbar(bin_centres, sq_fraction, yerr=sq_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Spiral Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Spirals", fontsize=16)
     #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
     ax.set_ylim(np.nanmin(sq_fraction) * 0.8, np.nanmax(sq_fraction) * 1.2)
     ax.plot(trialX, trialY_sq_frac_line, 'g-', label = 'Horiztontal Line Fit') 
     ax.plot(trialX, trialY_sq_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sq_frac[0]:.3f} ± {np.sqrt(pcov_sq_frac[0,0]):.3f})') 
-    ax.legend()
+    ax.legend(fontsize=16)
     ax.grid(axis="y", linestyle="--", alpha=0.7)
     ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
-    # Add a text box near the vertical line
-    ax.text(90, np.nanmax(sq_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=10, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.text(90, np.nanmax(sq_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(sq_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(sq_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_sq_binom == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, sq_fraction, yerr=sq_fraction_err_binom, marker='o', linestyle='-', color="purple", label="Quiescent Spiral Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Spirals (Binomial)", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(sq_fraction) * 0.8, np.nanmax(sq_fraction) * 1.2)
+    ax.plot(trialX, trialY_sq_frac_line_binom, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_sq_frac_binom, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sq_frac_binom[0]:.3f} ± {np.sqrt(pcov_sq_frac_binom[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(sq_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(sq_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(sq_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_sf == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, sf_fraction, yerr=sf_fraction_err, marker='o', linestyle='-', color="purple", label="Star-Forming Spiral Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Star-Forming Spirals", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(sf_fraction) * 0.8, np.nanmax(sf_fraction) * 1.2)
+    ax.plot(trialX, trialY_sf_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_sf_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sf_frac[0]:.3f} ± {np.sqrt(pcov_sf_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(sf_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(sf_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(sf_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_sf_binom == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, sf_fraction, yerr=sf_fraction_err_binom, marker='o', linestyle='-', color="purple", label="Star-Forming Spiral Fraction", capsize=2)
+    ax.set_xlabel("Angle from Major Axis (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Star-Forming Spirals", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(sf_fraction) * 0.8, np.nanmax(sf_fraction) * 1.2)
+    ax.plot(trialX, trialY_sf_frac_line_binom, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_sf_frac_binom, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sf_frac_binom[0]:.3f} ± {np.sqrt(pcov_sf_frac_binom[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(sf_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(sf_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(sf_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_q == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, q_fraction, yerr=q_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Galaxies", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(q_fraction) * 0.8, np.nanmax(q_fraction) * 1.2)
+    ax.plot(trialX, trialY_q_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_q_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_q_frac[0]:.3f} ± {np.sqrt(pcov_q_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(q_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(q_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(q_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_q_binom == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, q_fraction, yerr=q_fraction_err_binom, linestyle='none', linewidth = 3, marker='o', markersize = 10, markeredgecolor='black', markeredgewidth=1.5, color="red", label="Medians", capsize=4)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Galaxies", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(q_fraction) * 0.9, np.nanmax(q_fraction) * 1.1)
+    ax.plot(trialX, trialY_q_frac_line_binom, linestyle='-', color = 'blue', linewidth = 2, label = 'Linear fit') 
+    ax.plot(trialX, trialY_q_frac_binom, linestyle='-', color = 'red', linewidth = 2, label = f'Sinusoid fit (amplitude = {popt_q_frac_binom[0]:.3f} ± {np.sqrt(pcov_q_frac_binom[0,0]):.3f})') 
+    ax.legend(fontsize=16, loc = 'lower right', bbox_to_anchor=(1, 0))
+    ax.grid(axis="y", linestyle="--", alpha=0.7, linewidth = 2)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=2)
+    ax.text(90, np.nanmax(q_fraction) * 1.05, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=2)
+    ax.text(0, np.nanmax(q_fraction) * 1.05, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=2)
+    ax.text(180, np.nanmax(q_fraction) * 1.05, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.tick_params(axis='both', which='major', labelsize=14)
+    plt.tick_params(axis='both', which='minor', labelsize=14)
+    plt.show()
+    print("q red.chi2:")
+    print("sine", chi2_red_q_frac_binom)
+    print("line", chi2_red_q_frac_line_binom)
+
+if show_f == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, f_fraction, yerr=f_fraction_err, marker='o', linestyle='-', color="purple", label="Star-Forming Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Star-Forming Galaxies", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(f_fraction) * 0.8, np.nanmax(f_fraction) * 1.2)
+    ax.plot(trialX, trialY_f_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_f_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_f_frac[0]:.3f} ± {np.sqrt(pcov_f_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(f_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(f_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(f_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+
     #ax[2].text(0.1, 0.2, f"{bin_size}° Bins\nMinimum LX: {min_lx}\nz < {max_z}\nMinimum Satellite Mass: {min_satellite_mass}\nClassification threshold: {classification_threshold}\nDebiased: {debiased}\nPhysical Separation: {phys_sep} kpc\nMax Velocity Difference: {max_vel} km/s\nSignal-to-Noise: {signal_to_noise}", ha="center", va="center", transform=ax[2].transAxes, fontsize=8, fontweight="normal", bbox=dict(facecolor='lightgray', edgecolor='black', boxstyle='round,pad=0.5'))
+    plt.show()
+
+if show_f_binom == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, f_fraction, yerr=f_fraction_err_binom, marker='o', linestyle='-', color="purple", label="Star-Forming Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Star-Forming Galaxies (Binomial)", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(f_fraction) * 0.8, np.nanmax(f_fraction) * 1.2)
+    ax.plot(trialX, trialY_f_frac_line_binom, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_f_frac_binom, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_f_frac_binom[0]:.3f} ± {np.sqrt(pcov_f_frac_binom[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(f_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(f_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(f_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_e == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, e_fraction, yerr=e_fraction_err, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Elliptical Galaxies", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(e_fraction) * 0.8, np.nanmax(e_fraction) * 1.2)
+    ax.plot(trialX, trialY_e_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_e_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_e_frac[0]:.3f} ± {np.sqrt(pcov_e_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(e_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(e_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(e_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_e_binom == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, e_fraction, yerr=e_fraction_err_binom, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Elliptical Galaxies (Binomial)", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(e_fraction) * 0.8, np.nanmax(e_fraction) * 1.2)
+    ax.plot(trialX, trialY_e_frac_line_binom, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_e_frac_binom, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_e_frac_binom[0]:.3f} ± {np.sqrt(pcov_e_frac_binom[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(e_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(e_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(e_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_s == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, s_fraction, yerr=s_fraction_err, marker='o', linestyle='-', color="purple", label="Spiral Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Spiral Galaxies", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(s_fraction) * 0.8, np.nanmax(s_fraction) * 1.2)
+    ax.plot(trialX, trialY_s_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_s_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_s_frac[0]:.3f} ± {np.sqrt(pcov_s_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(s_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(s_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(s_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_s_binom == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, s_fraction, yerr=s_fraction_err_binom, marker='o', linestyle='-', color="purple", label="Spiral Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Spiral Galaxies", fontsize=16)
+    #ax.set_title("Fraction of spirals which are quiescent as a function of angle")
+    ax.set_ylim(np.nanmin(s_fraction) * 0.8, np.nanmax(s_fraction) * 1.2)
+    ax.plot(trialX, trialY_s_frac_line_binom, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_s_frac_binom, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_s_frac_binom[0]:.3f} ± {np.sqrt(pcov_s_frac_binom[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(s_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(s_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(s_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_qs == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, qs_fraction, yerr=qs_fraction_err, marker='o', linestyle='-', color="purple", label="Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Galaxies Which Are Spirals", fontsize=16)
+    ax.set_ylim(np.nanmin(qs_fraction) * 0.8, np.nanmax(qs_fraction) * 1.2)
+    ax.plot(trialX, trialY_qs_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_qs_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_qs_frac[0]:.3f} ± {np.sqrt(pcov_qs_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(qs_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(qs_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(qs_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_fs == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(bin_centres, fs_fraction, yerr=fs_fraction_err, marker='o', linestyle='-', color="purple", label="Fraction", capsize=2)
+    ax.set_xlabel("Angle (degrees)", fontsize=16)
+    ax.set_ylabel("Fraction of Star-Forming Galaxies Which are Spirals", fontsize=16)
+    ax.set_ylim(np.nanmin(fs_fraction) * 0.8, np.nanmax(fs_fraction) * 1.2)
+    ax.plot(trialX, trialY_fs_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+    ax.plot(trialX, trialY_fs_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_fs_frac[0]:.3f} ± {np.sqrt(pcov_fs_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    ax.axvline(x=90, color='black', linestyle='dotted', linewidth=1)
+    ax.text(90, np.nanmax(fs_fraction) * 1.15, 'Minor Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=0, color='black', linestyle='dotted', linewidth=1)
+    ax.text(0, np.nanmax(fs_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    ax.axvline(x=180, color='black', linestyle='dotted', linewidth=1)
+    ax.text(180, np.nanmax(fs_fraction) * 1.15, 'Major Axis', ha='center', va='bottom', fontsize=16, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.3'))
+    plt.show()
+
+if show_phase_space == 1:
+    colour_map = {
+    'ef': '#FF0000',  # Red
+    'sf': '#0000FF',  # Blue
+    'eq': '#00FF00',  # Green
+    'sq': '#800080',  # Purple
+    'uu': '#808080'   # Gray
+    }
+    plt.figure(figsize=(10, 6), dpi = 150)
+    for category in colour_map:
+        mask = [morph == category for morph in morph_forming_list]
+        plt.scatter(
+        [radial_sep_list[i] for i in range(len(radial_sep_list)) if mask[i]],
+        [vel_diff_list[i] for i in range(len(vel_diff_list)) if mask[i]],
+        c=colour_map[category],
+        label=category,
+        alpha=0.7,
+        edgecolors='w')
+    plt.xlabel('Radial Separation [kpc]', fontsize=12)
+    plt.xlim(0, max(radial_sep_list))
+    plt.ylabel(r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)
+    plt.title('Radial Separation vs. Velocity Difference\nColoured by Morphological Class', fontsize=14)
+    plt.legend(
+    title='Class',
+    bbox_to_anchor=(0.75, 0.95),
+    loc='upper left',
+    facecolor='white',   # Opaque background
+    edgecolor='black',   # Border color
+    framealpha=1         # Full opacity (no transparency)
+)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.show()
+
+if show_phase_space_r200 == 1:
+    colour_map = {
+    'ef': '#FF0000',  # Red
+    'sf': '#0000FF',  # Blue
+    'eq': '#00FF00',  # Green
+    'sq': '#800080',  # Purple
+    'uu': '#808080'   # Gray
+    }
+    plt.figure(figsize=(10, 6), dpi = 150)
+    for category in colour_map:
+        mask = [morph == category for morph in morph_forming_list]
+        plt.scatter(
+        [r200_list[i] for i in range(len(r200_list)) if mask[i]],
+        [vel_diff_list[i] for i in range(len(vel_diff_list)) if mask[i]],
+        c=colour_map[category],
+        label=category,
+        alpha=0.7,
+        edgecolors='w')
+    plt.xlabel(r'Radial Separation [R/$R_{200}$]', fontsize=12)
+    plt.xlim(0, max(r200_list))
+    plt.ylabel(r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)
+    plt.title('Radial Separation vs. Velocity Difference\nColoured by Morphological Class', fontsize=14)
+    plt.legend(
+    title='Class',
+    bbox_to_anchor=(0.75, 0.95),
+    loc='upper left',
+    facecolor='white',   # Opaque background
+    edgecolor='black',   # Border color
+    framealpha=1         # Full opacity (no transparency)
+)
+    plt.grid(True, linestyle='--', alpha=0.7)
     plt.show()
 
 """
@@ -784,3 +1481,28 @@ ax[2].grid(axis="y", linestyle="--", alpha=0.7)
 
 plt.tight_layout()  # Adjust layout to prevent overlapping elements
 plt.show()"""
+
+if show_phase_heat == 1:
+    x_bins = np.linspace(min(r200_list), max(r200_list), 30)
+    y_bins = np.linspace(min(vel_diff_list), max(vel_diff_list), 30)
+
+    heatmap, xedges, yedges = np.histogram2d(
+        r200_list, 
+        vel_diff_list, 
+        bins=(x_bins, y_bins))
+
+    plt.figure(figsize=(10, 8))
+    plt.imshow(
+        heatmap.T, 
+        origin='lower', 
+        extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
+        cmap='viridis',
+        aspect='auto')
+    cbar = plt.colorbar(label='Density')
+    cbar.ax.tick_params(labelsize=14)  # Adjust colorbar tick labels
+    cbar.set_label('Density', fontsize=14)  # Adjust colorbar label font size
+    plt.tick_params(axis='both', which='major', labelsize=14)
+    plt.tick_params(axis='both', which='minor', labelsize=14)
+    plt.xlabel(r"R/R$_{200}$", fontsize=14)
+    plt.ylabel(r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=16)
+    plt.show()

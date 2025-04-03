@@ -109,3 +109,17 @@ def calculate_velocity_distance(bcg_z, gal_z):
         return []
     vel_diff = 299792.458 * (bcg_z - gal_z)
     return vel_diff
+
+def calculate_r200(Lx):
+    # Constants
+    H0 = 70  # km/s/Mpc
+    G = 4.301e-9  # Mpc^3 M_sun^-1 s^-2
+    rho_crit = (3 * (H0**2)) / (8 * np.pi * G)  # M_sun/Mpc^3
+    # Scaling relation parameters (adjust as needed)
+    A = 10**14.3  # M_sun
+    B = 1e44  # erg/s (L_X normalization)
+    alpha = 0.65
+    M500 = A * (Lx / B)**alpha
+    M200 = 1.5 * M500
+    R200 = (3 * M200 / (800 * np.pi * rho_crit))**(1/3)  # in Mpc
+    return R200 * 1e3  # Convert Mpc to kpc

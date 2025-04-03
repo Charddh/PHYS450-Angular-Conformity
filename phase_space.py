@@ -6,27 +6,34 @@ from astropy.io import fits
 import seaborn as sns
 import pandas as pd
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
-from functions import sine_function, sine_function_2, sine_function_3, cosine_function, calculate_radial_distance, calculate_velocity_distance, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
+from functions import sine_function, calculate_r200, sine_function_2, sine_function_3, cosine_function, calculate_radial_distance, calculate_velocity_distance, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
 
 max_z = 0.125 #Maximum redshift in the sample.
 min_lx = 1e43 #Minimum x-ray luminosity for clusters.
 bin_size = 45 #Size in degrees of the bins.
 sfr_bin_size = 45 #Size in degrees of the bins for the SFR plot.
 min_satellite_mass = 10.2 #Minimum satellite galaxy mass.
-classification_threshold = 1 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
-sfr_threshold = -11.25 #Threshold of specific star formation rate considered as the boundary between active and quiescent galaxies.
-debiased = 1 #If 1, will use debiased classifications. Else, will use raw classifications.
-phys_sep = 3000 #Maximum physical separation in kpc between BCG and satellite galaxies.
+classification_threshold = 0.5 #If 1, will classify based on highest number. Else, will classify based on probability threshold.
+sfr_threshold = -11.0 #Threshold of specific star formation rate considered as the boundary between active and quiescent galaxies.
+debiased = 0 #If 1, will use debiased classifications. Else, will use raw classifications.
+phys_sep = 15000 #Maximum physical separation in kpc between BCG and satellite galaxies.
 min_phys_sep = 0 #Minimum physical separation in kpc between BCG and satellite galaxies.
-max_vel = 1500 #Maximum velocity difference in km/s between BCG and satellite galaxies.
-min_vel = 0 #Minimum velocity difference in km/s between BCG and satellite galaxies.
+max_satellite_mass = 11.5 #Maximum satellite galaxy mass.
+min_vel_diff = 0
+
+show_phase_space_r200 = 1
 
 core_radius = 1750 #Radius of the 'core' satellite galaxies in kpc
 outer_radius = 3000 #Maximum radius of satellites considered in kpc
 
 phase_bin_size = 1000 #Size in kpc of the bins
+restricted = 0.5 #1 for restricted, 0.5 for a fixed max_vel = 3000, 0 for unrestricted
 
-continuous = 1
+use_r200 = 1
+max_r200 = 4
+min_r200 = 0
+
+continuous = 0
 show_morph = 0
 show_forming = 0
 show_ef = 0
@@ -44,12 +51,18 @@ show_phase_space_morph = 0
 show_phase_space_forming = 0
 show_phase_heat = 0
 show_phase_heat_morph = 0
-show_phase_heat_morph_form = 1
+show_phase_heat_morph_form = 0
 show_phase_heat_forming = 0
+
+show_phase_heat_r200 = 1
+
+show_eq_phase = 0
+show_sq_phase = 0
+phase_bin_size = 1
 
 signal_to_noise = 1 #Minimum signal-to-noise ratio for galaxy spectra.
 axis_bin = 60
-mergers = ['1_9772', '1_1626', '2_3729', '1_5811', '1_1645', '1_9618', '1_4456', '2_19468']
+mergers = ['1_9618', '1_1626', '1_5811', '1_1645']
 binaries = ['2_13471', '1_12336', '1_9849', '1_21627', '2_1139', '1_23993', '2_3273', '2_11151', '1_14486', '1_4409', '1_14573', '1_14884', '1_5823', '1_14426']
 #Open the cluster FITS file and retrieve the data from the second HDU (Header Data Unit).
 
@@ -60,7 +73,6 @@ cluster_df = pd.DataFrame({
     for name in cluster_data.dtype.names  #Iterate over each field name in the structured array.
 })
 
-#Import the galaxy zoo and bcg datasets.
 gz_df = pd.DataFrame(fits.open("GZDR1SFRMASS.fits")[1].data)
 bcg_df = pd.DataFrame(fits.open("SpidersXclusterBCGs-v2.0.fits")[1].data)
 
@@ -71,17 +83,22 @@ cluster_df2 = cluster_df[(cluster_df['SCREEN_CLUZSPEC'] < max_z) & (cluster_df['
 cluster_df2.loc[:, "CLUS_ID"] = cluster_df2["CLUS_ID"].astype(str).str.strip().str.replace(" ", "")
 #Extract relevant columns from the filtered clusters DataFrame.
 cluster_id = cluster_df2['CLUS_ID'].values
-cluster_ra = cluster_df2['RA'].values
-cluster_dec = cluster_df2['DEC'].values
-cluster_z = cluster_df2['SCREEN_CLUZSPEC'].values
 #Extract relevant columns from the bcg dataframe.
-bcg_df2 = bcg_df[bcg_df['CLUS_ID'].isin(cluster_id)]
+
+bcg_df2 = bcg_df.merge(
+    cluster_df2[['CLUS_ID', 'LX0124']],  # Columns to transfer
+    on='CLUS_ID',                        # Merge key
+    how='inner',                         # Keep only matching clusters
+    suffixes=('', '_cluster')            # Avoid column name conflicts
+)
 
 reduced_clusters_id = bcg_df2['CLUS_ID'].values
 reduced_clusters_ra = bcg_df2['RA_BCG'].values
 reduced_clusters_dec = bcg_df2['DEC_BCG'].values
 reduced_clusters_z = bcg_df2['CLUZSPEC'].values
 reduced_clusters_pa = bcg_df2['GAL_sdss_i_modSX_C2_PA'].values
+reduced_clusters_lx = bcg_df2['LX0124'].values
+reduced_clusters_r200 = np.array([calculate_r200(lx) for lx in reduced_clusters_lx])
 
 #Extract relevant columns from the galaxy zoo dataframe.
 gz_id = gz_df['SPECOBJID_1'].values
@@ -122,11 +139,49 @@ angular_separation = np.sqrt((ra_diff ** 2) * (np.cos(np.radians(reduced_cluster
 
 #Number of degrees corresponding to 1 kpc at the redshift of each cluster.
 degrees_per_kpc = (1 / 3600) * cosmo.arcsec_per_kpc_proper(reduced_clusters_z[:, None]).value
+phys_sep_galaxy = angular_separation / degrees_per_kpc
+r200_sep_galaxy = phys_sep_galaxy / reduced_clusters_r200[:, None]
 
-#Apply the selection criteria (angular separation and redshift difference).
-selected_galaxies_mask = (angular_separation < phys_sep * degrees_per_kpc) & (angular_separation > min_phys_sep * degrees_per_kpc) & (z_diff < max_vel / 3e5) & (gz_mass > min_satellite_mass) & (gz_s_n > signal_to_noise) & (z_diff > min_vel / 3e5)
+if restricted == 1:     
+    max_vel = np.where(
+        (phys_sep_galaxy >= 0) & (phys_sep_galaxy <= 3000),
+        -0.43 * phys_sep_galaxy + 2000,
+        np.where(
+            (phys_sep_galaxy > 3000) & (phys_sep_galaxy < 5000),
+            500,
+            np.nan))
+elif restricted == 0.5:
+    max_vel = 2500
+else:
+    max_vel = np.where(
+    (phys_sep_galaxy >= 0) & (phys_sep_galaxy <= 3000),
+    -0.43 * phys_sep_galaxy + 2000,
+    np.where(
+        (phys_sep_galaxy > 3000) & (phys_sep_galaxy < 5000),
+        np.inf,
+        np.nan))
+    
+max_vel = 2000
 
-#Create a list of Galaxy data for each cluster.
+if use_r200 == 1:
+    selected_galaxies_mask = (
+        (r200_sep_galaxy <= max_r200) & 
+        (r200_sep_galaxy > min_r200) &
+        (z_diff < max_vel / 3e5) &
+        (gz_mass > min_satellite_mass) &
+        (gz_mass < max_satellite_mass) &
+        (gz_s_n > signal_to_noise) &
+        (z_diff > min_vel_diff / 3e5))
+else:
+    selected_galaxies_mask = (
+        (phys_sep_galaxy <= phys_sep) & 
+        (phys_sep_galaxy > min_phys_sep) &
+        (z_diff < max_vel / 3e5) &
+        (gz_mass > min_satellite_mass) &
+        (gz_mass < max_satellite_mass) &
+        (gz_s_n > signal_to_noise) &
+        (z_diff > min_vel_diff / 3e5))
+
 reduced_clusters_locals_id = [gz_id[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
 reduced_clusters_locals_ra = [gz_ra[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
 reduced_clusters_locals_dec = [gz_dec[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
@@ -139,14 +194,12 @@ reduced_clusters_locals_sfr16 = [gz_sfr16[selected_galaxies_mask[i]] for i in ra
 reduced_clusters_locals_sfr84 = [gz_sfr84[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
 
 #Create a dataframe containing the bcg data with corresponding satellite data.
-df_bcg = pd.DataFrame({'bcg_id': reduced_clusters_id,'bcg_ra': reduced_clusters_ra,'bcg_dec': reduced_clusters_dec,'bcg_z': reduced_clusters_z, 'bcg_sdss_pa': reduced_clusters_pa, 'sat_id': reduced_clusters_locals_id, 'sat_ra': reduced_clusters_locals_ra, 'sat_dec': reduced_clusters_locals_dec, 'sat_z': reduced_clusters_locals_z, 'sat_elliptical': reduced_clusters_locals_elliptical, 'sat_spiral': reduced_clusters_locals_spiral, 'sat_mass': reduced_clusters_locals_mass, 'sat_sfr': reduced_clusters_locals_sfr, 'sat_sfr16': reduced_clusters_locals_sfr16, 'sat_sfr84': reduced_clusters_locals_sfr84})
+df_bcg = pd.DataFrame({'bcg_id': reduced_clusters_id,'bcg_ra': reduced_clusters_ra,'bcg_dec': reduced_clusters_dec,'bcg_z': reduced_clusters_z, 'bcg_sdss_pa': reduced_clusters_pa, 'bcg_r200': reduced_clusters_r200, 'sat_id': reduced_clusters_locals_id, 'sat_ra': reduced_clusters_locals_ra, 'sat_dec': reduced_clusters_locals_dec, 'sat_z': reduced_clusters_locals_z, 'sat_elliptical': reduced_clusters_locals_elliptical, 'sat_spiral': reduced_clusters_locals_spiral, 'sat_mass': reduced_clusters_locals_mass, 'sat_sfr': reduced_clusters_locals_sfr, 'sat_sfr16': reduced_clusters_locals_sfr16, 'sat_sfr84': reduced_clusters_locals_sfr84})
 clusters_df = pd.DataFrame({'bcg_id': reduced_clusters_id,'bcg_ra': reduced_clusters_ra,'bcg_dec': reduced_clusters_dec, 'bcg_sdss_pa': reduced_clusters_pa})
 clusters_df.to_csv('bcg_data.csv', index=False)
 df_bcg["bcg_id"] = df_bcg["bcg_id"].str.strip()
 angle_df = pd.read_csv('BCGAngleOffset.csv')
 angle_df["clus_id"] = angle_df["clus_id"].str.strip()
-#print("df_bcg", df_bcg["bcg_id"][~df_bcg["bcg_id"].isin(angle_df["clus_id"])])
-#print("Length of df_bcg['bcg_id']:", len(df_bcg["bcg_id"]))
 
 missing_ids = df_bcg["bcg_id"][~df_bcg["bcg_id"].isin(angle_df["clus_id"])]
 
@@ -159,17 +212,7 @@ merged_df['radial_sep'] = merged_df.apply(lambda row: calculate_radial_distance(
 merged_df['vel_diff'] = merged_df.apply(lambda row: calculate_velocity_distance(row['bcg_z'], row['sat_z']), axis=1)
 merged_df['ra_diff'] = merged_df.apply(lambda row: [row['bcg_ra'] - x for x in row['sat_ra']], axis=1)
 merged_df['dec_diff'] = merged_df.apply(lambda row: [row['bcg_dec'] - x for x in row['sat_dec']], axis=1)
-
-satellite_df = pd.DataFrame({
-    "clus_id": merged_df["clus_id"],
-    "bcg_ra": merged_df["bcg_ra"],
-    "bcg_dec": merged_df["bcg_dec"],
-    "corrected_pa": merged_df["corrected_pa"],
-    "sat_ra": merged_df["sat_ra"],
-    "sat_dec": merged_df["sat_dec"],
-    "theta": merged_df["theta"],
-    "sat_majoraxis_angle": merged_df["sat_majoraxis_angle"]})
-satellite_df.to_csv('satellite.csv', index=False)
+merged_df['r/r200'] = merged_df['radial_sep'] / merged_df['bcg_r200']
 
 if classification_threshold == 1:
     merged_df[['sat_elliptical', 'sat_spiral']] = merged_df.apply(
@@ -197,6 +240,7 @@ sfr_list = np.concatenate(merged_df['sat_sfr'].values)
 sfr16_list = np.concatenate(merged_df['sat_sfr16'].values)
 sfr84_list = np.concatenate(merged_df['sat_sfr84'].values)
 sfr_error = (sfr84_list - sfr16_list) / 2
+r200_list = np.concatenate(merged_df['r/r200'].values)
 
 print("number of satellites in sample", len(sat_majoraxis_list))
 
@@ -217,10 +261,13 @@ morph_forming_list = [
     "sf" if morph == "s" and sfr == "f" else
     "eq" if morph == "e" and sfr == "q" else
     "sq" if morph == "s" and sfr == "q" else
+    "uq" if morph == "u" and sfr == "q" else
+    "uf" if morph == "u" and sfr == "f" else
     "uu"
     for morph, sfr in zip(sat_type_list, sfr_type_list)]
 
 vel_diff   = np.array(vel_diff_list)
+r200_sep = np.array(r200_list)
 radial_sep = np.array(radial_sep_list)
 sat_type   = np.array(sat_type_list)
 sfr_type = np.array(sfr_type_list)
@@ -275,7 +322,7 @@ sq_x_bin2_err = np.sqrt(sq_fraction_bin2) / len(bin2_sq)
 sq_fraction_bin3 = np.sum(bin3_sq == 'sq') / len(bin3_sq)
 sq_x_bin3_err = np.sqrt(sq_fraction_bin3) / len(bin3_sq)
 
-data = {"angles": sat_majoraxis_list, "types": sat_type_list, "morph_sfr": morph_forming_list, "sep": radial_sep_list}
+data = {"angles": sat_majoraxis_list, "types": sat_type_list, "morph_sfr": morph_forming_list, "sep": r200_list}
 df=pd.DataFrame(data)
 df["spiral_angles"] = df["angles"].where(df["types"] == "s")
 df["elliptical_angles"] = df["angles"].where(df["types"] == "e")
@@ -392,10 +439,9 @@ chi2_red_sfr_frac_line = chi2_red(bin_centres, sfr_fraction, sfr_fraction_errors
 sfr_chi2_red = chi2_red(sfr_bin_centres, sfr_mean, sfr_error_mean, popt_avgsfr, sine_function)
 sfr_chi2_red_line = chi2_red(sfr_bin_centres, sfr_mean, sfr_error_mean, popt_avgsfr_line, horizontal_line)
 
-phase_bins = np.arange(0, phys_sep, phase_bin_size)
+phase_bins = np.arange(0, max_r200, phase_bin_size)
 phase_bin_centres = (phase_bins[:-1] + phase_bins[1:]) / 2
-phase_trialX = np.linspace(0, phys_sep, 1000)
-
+phase_trialX = np.linspace(0, max_r200, 1000)
 phase_ef_hist, _ = np.histogram(phase_ef, bins=phase_bins)
 phase_sf_hist, _ = np.histogram(phase_sf, bins=phase_bins)
 phase_eq_hist, _ = np.histogram(phase_eq, bins=phase_bins)
@@ -406,12 +452,36 @@ phase_sf_err = np.sqrt(phase_sf_hist)
 phase_eq_err = np.sqrt(phase_eq_hist)
 phase_sq_err = np.sqrt(phase_sq_hist)
 phase_uu_err = np.sqrt(phase_uu_hist)
-phase_ef_fraction = np.where(phase_ef_hist + phase_eq_hist + phase_uu_hist > 0, (phase_ef_hist / (phase_ef_hist + phase_eq_hist + phase_uu_hist)), 0)
-phase_sq_fraction = np.where(phase_sq_hist + phase_sf_hist + phase_uu_hist> 0, (phase_sq_hist / (phase_sq_hist + phase_sf_hist + phase_uu_hist)), 0)
-phase_ef_fraction_err = np.where(phase_ef_hist + phase_eq_hist + phase_uu_hist> 0, np.sqrt(phase_ef_hist) / (phase_ef_hist + phase_eq_hist + phase_uu_hist), np.nan)
-phase_sq_fraction_err = np.where(phase_sq_hist + phase_sf_hist + phase_uu_hist> 0, np.sqrt(phase_sq_hist) / (phase_sq_hist + phase_sf_hist + phase_uu_hist), np.nan)
+phase_eq_fraction = np.where(phase_ef_hist + phase_eq_hist > 0, (phase_eq_hist / (phase_ef_hist + phase_eq_hist)), 0)
+phase_sq_fraction = np.where(phase_sq_hist + phase_sf_hist> 0, (phase_sq_hist / (phase_sq_hist + phase_sf_hist)), 0)
+phase_eq_fraction_err = np.where(phase_ef_hist + phase_eq_hist > 0, np.sqrt(phase_eq_hist) / (phase_ef_hist + phase_eq_hist), np.nan)
+phase_sq_fraction_err = np.where(phase_sq_hist + phase_sf_hist > 0, np.sqrt(phase_sq_hist) / (phase_sq_hist + phase_sf_hist), np.nan)
 
 ############ GRAPHS ############
+if show_eq_phase == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(phase_bin_centres, phase_eq_fraction, yerr=phase_eq_fraction_err, marker='o', linestyle='-', color="purple", label="Elliptical Fraction", capsize=2)
+    ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Ellipticals", fontsize=16)
+    ax.set_ylim(np.nanmin(phase_eq_fraction) * 0.8, np.nanmax(phase_eq_fraction) * 1.2)
+    #ax.plot(trialX, trialY_ef_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+    #ax.plot(trialX, trialY_ef_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_ef_frac[0]:.3f} ± {np.sqrt(pcov_ef_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.show()
+
+if show_sq_phase == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(phase_bin_centres, phase_sq_fraction, yerr=phase_sq_fraction_err, marker='o', linestyle='-', color="purple", label="Quiescent Fraction", capsize=2)
+    ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
+    ax.set_ylabel("Fraction of Quiescent Spirals", fontsize=16)
+    ax.set_ylim(np.nanmin(phase_sq_fraction) * 0.8, np.nanmax(phase_sq_fraction) * 1.2)
+    #ax.plot(trialX, trialY_sq_frac_line, 'g-', label = 'Horiztontal Line Fit') 
+    #ax.plot(trialX, trialY_sq_frac, 'r-', label = f'Sinusoidal Fit (amplitude = {popt_sq_frac[0]:.3f} ± {np.sqrt(pcov_sq_frac[0,0]):.3f})') 
+    ax.legend(fontsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.show()
+
 if show_physical_combo == 1:
     colour_map = {
     'ef': '#FF0000',  # Red
@@ -676,6 +746,7 @@ if show_phase_space == 1:
         alpha=0.7,
         edgecolors='w')
     plt.xlabel('Radial Separation [kpc]', fontsize=12)
+    plt.xlim(0, phys_sep)
     plt.ylabel(r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)
     plt.title('Radial Separation vs. Velocity Difference\nColoured by Morphological Class', fontsize=14)
     plt.legend(
@@ -757,11 +828,37 @@ if show_phase_heat == 1:
     plt.title('Heatmap of Radial Separation vs. Velocity Difference', fontsize=14)
     plt.show()
 
+if show_phase_heat_r200 == 1:
+    x_bins = np.linspace(min(r200_list), max(r200_list), 30)
+    y_bins = np.linspace(min(vel_diff_list), max(vel_diff_list), 30)
+
+    heatmap, xedges, yedges = np.histogram2d(
+        r200_list, 
+        vel_diff_list, 
+        bins=(x_bins, y_bins))
+
+    plt.figure(figsize=(10, 8))
+    plt.imshow(
+        heatmap.T, 
+        origin='lower', 
+        extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
+        cmap='viridis',  # Choose colormap: 'plasma', 'inferno', etc.
+        aspect='auto')
+    cbar = plt.colorbar(label='Density')
+    cbar.ax.tick_params(labelsize=16)  # Adjust colorbar tick labels
+    cbar.set_label('Density', fontsize=16)  # Adjust colorbar label font size
+    plt.xlabel(r'Radial Separation [R/$R_{200}$]', fontsize=16)
+    plt.tick_params(axis='both', which='major', labelsize=16)
+    plt.tick_params(axis='both', which='minor', labelsize=16)
+    plt.xlim(0, max_r200)
+    plt.ylabel(r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=16)
+    plt.show()
+
 if show_phase_heat_morph == 1:
     title_mapping = {'e': 'Elliptical', 's': 'Spiral'}
     # Create DataFrame
     df = pd.DataFrame({
-        'radial_sep': radial_sep_list,
+        'radial_sep': r200_list,
         'vel_diff': vel_diff_list,
         'morph': sat_type_list
     })
@@ -784,7 +881,7 @@ if show_phase_heat_morph == 1:
         cmap='viridis', 
         cbar=True
     )
-    g.set_axis_labels('Radial Separation [kpc]', r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)
+    g.set_axis_labels(r"R/R$_{200}$", r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)
     #g.fig.suptitle('Heatmaps by Morphological Class', y=1.02, fontsize=12)
 
     for ax, title in zip(g.axes.flat, g.col_names):
@@ -797,7 +894,7 @@ if show_phase_heat_morph == 1:
 if show_phase_heat_morph_form == 1:
     title_mapping = {'ef': 'Star-Forming Elliptical', 'sf': 'Star-Forming Spiral', 'eq': 'Quiescent Elliptical', 'sq': 'Quiescent Spiral'}
     df = pd.DataFrame({
-        'radial_sep': radial_sep_list,
+        'radial_sep': r200_list,
         'vel_diff': vel_diff_list,
         'morph': morph_forming_list
     })
@@ -819,8 +916,7 @@ if show_phase_heat_morph_form == 1:
         cmap='viridis', 
         cbar=True
     )
-    g.set_axis_labels('Radial Separation [kpc]', r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)
-    #g.fig.suptitle('Heatmaps by Morphological Class', y=1.02, fontsize=12)
+    g.set_axis_labels(r"R/R$_{200}$", r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)    #g.fig.suptitle('Heatmaps by Morphological Class', y=1.02, fontsize=12)
     for ax, title in zip(g.axes.flat, g.col_names):
         ax.set_title(f'Morphology = {title_mapping[title]}', fontsize=16)
     for ax in g.axes.flat:
@@ -832,7 +928,7 @@ if show_phase_heat_forming == 1:
     title_mapping = {'q': 'Quiescent', 'f': 'Star-Forming'}
     # Create DataFrame
     df = pd.DataFrame({
-        'radial_sep': radial_sep_list,
+        'radial_sep': r200_list,
         'vel_diff': vel_diff_list,
         'star forming status': sfr_type_list
     })
@@ -854,11 +950,7 @@ if show_phase_heat_forming == 1:
         cmap='viridis', 
         cbar=True
     )
-    g.set_axis_labels(
-        'Radial Separation [kpc]', 
-        r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', 
-        fontsize=12
-    )
+    g.set_axis_labels(r"R/R$_{200}$", r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)
     for ax, title in zip(g.axes.flat, g.col_names):
         ax.set_title(f'Star Forming Status = {title_mapping[title]}', fontsize=16)
     for ax in g.axes.flat:
@@ -867,3 +959,36 @@ if show_phase_heat_forming == 1:
     g.fig.subplots_adjust(top=0.9)
     
     plt.show() 
+
+if show_phase_space_r200 == 1:
+    colour_map = {
+    'ef': '#FF0000',  # Red
+    'sf': '#0000FF',  # Blue
+    'eq': '#00FF00',  # Green
+    'sq': '#800080',  # Purple
+    'uu': '#808080'   # Gray
+    }
+    plt.figure(figsize=(10, 6), dpi = 150)
+    for category in colour_map:
+        mask = [morph == category for morph in morph_forming_list]
+        plt.scatter(
+        [r200_list[i] for i in range(len(r200_list)) if mask[i]],
+        [vel_diff_list[i] for i in range(len(vel_diff_list)) if mask[i]],
+        c=colour_map[category],
+        label=category,
+        alpha=0.7,
+        edgecolors='w')
+    plt.xlabel(r'Radial Separation [R/$R_{200}$]', fontsize=12)
+    plt.xlim(0, max(r200_list))
+    plt.ylabel(r'Velocity Difference [$\mathrm{km\,s^{-1}}$]', fontsize=12)
+    plt.title('Radial Separation vs. Velocity Difference\nColoured by Morphological Class', fontsize=14)
+    plt.legend(
+    title='Class',
+    bbox_to_anchor=(0.75, 0.95),
+    loc='upper left',
+    facecolor='white',   # Opaque background
+    edgecolor='black',   # Border color
+    framealpha=1         # Full opacity (no transparency)
+)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.show()
