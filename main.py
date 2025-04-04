@@ -21,7 +21,7 @@ max_z = 0.115 #Maximum redshift in the sample.
 min_vel_diff = 0
 
 use_r200 = 1
-max_r200 = 1.5
+max_r200 = 3
 min_r200 = 0
 
 axis_bin = 60 #Size in degrees of the axis bins.
@@ -34,7 +34,7 @@ mergers = ['1_9618', '1_1626', '1_5811', '1_1645']
 show_qs = 0
 show_fs = 0
 show_q_binom = 1
-show_sq_binom = 0 #If 1, will show the quiescent spiral fraction plot.
+show_sq_binom = 1 #If 1, will show the quiescent spiral fraction plot.
 show_eq_binom = 0 #If 1, will show the star forming elliptical fraction plot.
 show_phase_heat = 1
 show_phase_combined = 0
@@ -180,6 +180,8 @@ else:
         20000,
         np.nan))
 
+max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 3),-500 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 3) ,np.nan,np.nan))
+
 if use_r200 == 1:
     selected_galaxies_mask = (
         (r200_sep_galaxy <= max_r200) & 
@@ -198,6 +200,8 @@ else:
         (gz_mass < max_satellite_mass) &
         (gz_s_n > signal_to_noise) &
         (z_diff > min_vel_diff / 3e5))
+
+
 
 selected_counts = [np.sum(selected_galaxies_mask[i]) for i in range(len(reduced_clusters_ra))]
 print("Sel", sum(selected_counts))

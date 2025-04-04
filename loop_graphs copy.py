@@ -144,8 +144,7 @@ for max_r200, min_r200 in fixed_pairs:
 
     max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 2),-750 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 2) & (r200_sep_galaxy < 4),500,np.nan))
 
-    max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 3),-500 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 3) ,np.nan,np.nan))
-
+    #max_vel = np.where((phys_sep_galaxy >= 0) & (phys_sep_galaxy <= 3000),-0.43 * phys_sep_galaxy + 2000,np.where((phys_sep_galaxy > 3000) & (phys_sep_galaxy < 5000), 500,np.nan))
 
     if use_r200 == 1:
         selected_galaxies_mask = (
@@ -334,16 +333,17 @@ for max_r200, min_r200 in fixed_pairs:
     trialY_fs_frac = sine_function_2(trialX, *popt_fs_frac)
     trialY_qs_frac = sine_function_2(trialX, *popt_qs_frac)
 
-    ef_amp.append(popt_ef_frac[0])
-    eq_amp.append(popt_eq_frac[0])
-    sf_amp.append(popt_sf_frac[0])
-    sq_amp.append(popt_sq_frac[0])
-    q_amp.append(popt_q_frac[0])
-    f_amp.append(popt_f_frac[0])
-    e_amp.append(popt_e_frac[0])
-    s_amp.append(popt_s_frac[0])
-    qs_amp.append(popt_qs_frac[0])
-    fs_amp.append(popt_fs_frac[0])
+    ef_amp.append(abs(popt_ef_frac[0]))
+    eq_amp.append(abs(popt_eq_frac[0]))
+    sf_amp.append(abs(popt_sf_frac[0]))
+    sq_amp.append(abs(popt_sq_frac[0]))
+    q_amp.append(abs(popt_q_frac[0]))
+    f_amp.append(abs(popt_f_frac[0]))
+    e_amp.append(abs(popt_e_frac[0]))
+    s_amp.append(abs(popt_s_frac[0]))
+    qs_amp.append(abs(popt_qs_frac[0]))
+    fs_amp.append(abs(popt_fs_frac[0]))
+
 
     ef_err_list.append(np.sqrt(pcov_ef_frac[0,0]))
     eq_err_list.append(np.sqrt(pcov_eq_frac[0,0]))
@@ -367,65 +367,47 @@ for max_r200, min_r200 in fixed_pairs:
     qs_err_list_sig = 3 * np.array(qs_err_list)
     fs_err_list_sig = 3 * np.array(fs_err_list)
 
-valid_indices_eq = np.where((abs(np.array(eq_amp)) - np.array(eq_err_list_sig)) > 0)
+valid_indices_eq = np.where((np.array(eq_amp) - np.array(eq_err_list_sig)) > 0)
 filtered_r200_eq = np.array(r200_list)[valid_indices_eq]
 filtered_eq_amp = np.array(eq_amp)[valid_indices_eq]
 filtered_eq_err = np.array(eq_err_list_sig)[valid_indices_eq]
 mask_filtered_eq = (filtered_eq_amp != 0.03) & (filtered_eq_amp != 0.1)
-mask_unfiltered_eq = (abs(np.array(eq_amp)) != 0.03) & (abs(np.array(eq_amp)) != 0.1)
-markers_unfiltered_eq = np.where(np.array(eq_amp)[mask_unfiltered_eq] >= 0, '^', 'v')
-markers_filtered_eq = np.where(np.array(filtered_eq_amp)[mask_filtered_eq] >= 0, '^', 'v')
-"""positive_mask_eq = np.array(eq_amp) > 0
-negative_mask_eq = np.array(eq_amp) < 0
-mask_negative_filtered_eq = mask_filtered_eq & negative_mask_eq
-mask_positive_filtered_eq = mask_filtered_eq & positive_mask_eq
-mask_negative_unfiltered_eq = mask_unfiltered_eq & negative_mask_eq
-mask_positive_unfiltered_eq = mask_unfiltered_eq & positive_mask_eq"""
+mask_unfiltered_eq = (np.array(eq_amp) != 0.03) & (np.array(eq_amp) != 0.1)
 
-valid_indices_sq = np.where((abs(np.array(sq_amp)) - np.array(sq_err_list_sig)) > 0)
+valid_indices_sq = np.where((np.array(sq_amp) - np.array(sq_err_list_sig)) > 0)
 filtered_r200_sq = np.array(r200_list)[valid_indices_sq]
 filtered_sq_amp = np.array(sq_amp)[valid_indices_sq]
 filtered_sq_err = np.array(sq_err_list_sig)[valid_indices_sq]
 mask_filtered_sq = (filtered_sq_amp != 0.03) & (filtered_sq_amp != 0.1)
-mask_unfiltered_sq = (abs(np.array(sq_amp)) != 0.03) & (abs(np.array(sq_amp)) != 0.1)
-markers_unfiltered_sq = np.where(np.array(sq_amp)[mask_unfiltered_sq] >= 0, '^', 'v')
-markers_filtered_sq = np.where(np.array(filtered_sq_amp)[mask_filtered_sq] >= 0, '^', 'v')
+mask_unfiltered_sq = (np.array(sq_amp) != 0.03) & (np.array(sq_amp) != 0.1)
 
-valid_indices_q = np.where((abs(np.array(q_amp)) - np.array(q_err_list_sig)) > 0)
+valid_indices_q = np.where((np.array(q_amp) - np.array(q_err_list_sig)) > 0)
 filtered_r200_q = np.array(r200_list)[valid_indices_q]
 filtered_q_amp = np.array(q_amp)[valid_indices_q]
 filtered_q_err = np.array(q_err_list_sig)[valid_indices_q]
 mask_filtered_q = (filtered_q_amp != 0.03) & (filtered_q_amp != 0.1)
-mask_unfiltered_q = (abs(np.array(q_amp)) != 0.03) & (abs(np.array(q_amp)) != 0.1)
-markers_unfiltered_q = np.where(np.array(q_amp)[mask_unfiltered_q] >= 0, '^', 'v')
-markers_filtered_q = np.where(np.array(filtered_q_amp)[mask_filtered_q] >= 0, '^', 'v')
+mask_unfiltered_q = (np.array(q_amp) != 0.03) & (np.array(q_amp) != 0.1)
 
-valid_indices_s = np.where((abs(np.array(s_amp)) - np.array(s_err_list_sig)) > 0)
+valid_indices_s = np.where((np.array(s_amp) - np.array(s_err_list_sig)) > 0)
 filtered_r200_s = np.array(r200_list)[valid_indices_s]
 filtered_s_amp = np.array(s_amp)[valid_indices_s]
 filtered_s_err = np.array(s_err_list_sig)[valid_indices_s]
 mask_filtered_s = (filtered_s_amp != 0.03) & (filtered_s_amp != 0.1)
-mask_unfiltered_s = (abs(np.array(s_amp)) != 0.03) & (abs(np.array(s_amp)) != 0.1)
-markers_unfiltered_s = np.where(np.array(s_amp)[mask_unfiltered_s] >= 0, '^', 'v')
-markers_filtered_s = np.where(np.array(filtered_s_amp)[mask_filtered_s] >= 0, '^', 'v')
+mask_unfiltered_s = (np.array(s_amp) != 0.03) & (np.array(s_amp) != 0.1)
 
-valid_indices_qs = np.where((abs(np.array(qs_amp)) - np.array(qs_err_list_sig)) > 0)
+valid_indices_qs = np.where((np.array(qs_amp) - np.array(qs_err_list_sig)) > 0)
 filtered_r200_qs = np.array(r200_list)[valid_indices_qs]
 filtered_qs_amp = np.array(qs_amp)[valid_indices_qs]
 filtered_qs_err = np.array(qs_err_list_sig)[valid_indices_qs]
 mask_filtered_qs = (filtered_qs_amp != 0.03) & (filtered_qs_amp != 0.1)
-mask_unfiltered_qs = (abs(np.array(qs_amp)) != 0.03) & (abs(np.array(qs_amp)) != 0.1)
-markers_unfiltered_qs = np.where(np.array(qs_amp)[mask_unfiltered_qs] >= 0, '^', 'v')
-markers_filtered_qs = np.where(np.array(filtered_qs_amp)[mask_filtered_qs] >= 0, '^', 'v')
+mask_unfiltered_qs = (np.array(qs_amp) != 0.03) & (np.array(qs_amp) != 0.1)
 
-valid_indices_fs = np.where((abs(np.array(fs_amp)) - np.array(fs_err_list_sig)) > 0)
+valid_indices_fs = np.where((np.array(fs_amp) - np.array(fs_err_list_sig)) > 0)
 filtered_r200_fs = np.array(r200_list)[valid_indices_fs]
 filtered_fs_amp = np.array(fs_amp)[valid_indices_fs]
 filtered_fs_err = np.array(fs_err_list_sig)[valid_indices_fs]
 mask_filtered_fs = (filtered_fs_amp != 0.03) & (filtered_fs_amp != 0.1)
-mask_unfiltered_fs = (abs(np.array(fs_amp)) != 0.03) & (abs(np.array(fs_amp)) != 0.1)
-markers_unfiltered_fs = np.where(np.array(fs_amp)[mask_unfiltered_fs] >= 0, '^', 'v')
-markers_filtered_fs = np.where(np.array(filtered_fs_amp)[mask_filtered_fs] >= 0, '^', 'v')
+mask_unfiltered_fs = (np.array(fs_amp) != 0.03) & (np.array(fs_amp) != 0.1)
 
 print("eq_amp:", filtered_eq_amp)
 print("sq_amp:", filtered_sq_amp)
@@ -434,31 +416,12 @@ print("s_amp:", filtered_s_amp)
 print("qs_amp:", filtered_qs_amp)
 print("fs_amp:", filtered_fs_amp)
 
-"""if show_eq_amp == 1:
-    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
-    ax.errorbar(filtered_r200_eq[mask_filtered_eq], abs(filtered_eq_amp)[mask_filtered_eq], yerr=filtered_eq_err[mask_filtered_eq], marker='o', markersize = 10, linestyle='none', color="purple", capsize=2, ecolor="black")
-    ax.errorbar(np.array(r200_list)[mask_unfiltered_eq], abs(np.array(eq_amp))[mask_unfiltered_eq], yerr=np.array(eq_err_list)[mask_unfiltered_eq], marker='o', markersize = 10, linestyle='none', color="purple", label="Quiescent Fraction Amplitude", capsize=2)    
-    ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
-    ax.set_ylim(0, 3 * max(abs(np.array(eq_amp))))
-    ax.tick_params(axis='both', which='major', labelsize=16)
-    ax.tick_params(axis='both', which='minor', labelsize=16)
-    ax.set_ylabel("Amplitude of Quiescent Elliptical Fit", fontsize=16) 
-    ax.legend(fontsize=16)
-    ax.grid(axis="y", linestyle="--", alpha=0.7, linewidth = 2)
-    plt.show()"""
-
 if show_eq_amp == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
-    ax.errorbar(filtered_r200_eq[mask_filtered_eq], abs(filtered_eq_amp)[mask_filtered_eq], yerr=filtered_eq_err[mask_filtered_eq], marker='o', markersize = 0, linestyle='none', color="purple", capsize=2, ecolor="black")
-    ax.errorbar(np.array(r200_list)[mask_unfiltered_eq], abs(np.array(eq_amp))[mask_unfiltered_eq], yerr=np.array(eq_err_list)[mask_unfiltered_eq], marker='o', markersize = 0, linestyle='none', color="purple", label="Quiescent Fraction Amplitude", capsize=2)        
-    for x, y, yerr, marker in zip(np.array(r200_list)[mask_unfiltered_eq], 
-                              abs(np.array(eq_amp))[mask_unfiltered_eq], 
-                              np.array(eq_err_list)[mask_unfiltered_eq], 
-                              markers_unfiltered_eq):
-        ax.errorbar(x, y, yerr=yerr, marker=marker, markersize=10, linestyle='none', linewidth = 0,
-                color="purple", capsize=0)   
+    ax.errorbar(filtered_r200_eq[mask_filtered_eq], filtered_eq_amp[mask_filtered_eq], yerr=filtered_eq_err[mask_filtered_eq], marker='o', markersize = 10, linestyle='none', color="purple", capsize=2, ecolor="black")
+    ax.errorbar(np.array(r200_list)[mask_unfiltered_eq], np.array(eq_amp)[mask_unfiltered_eq], yerr=np.array(eq_err_list)[mask_unfiltered_eq], marker='o', markersize = 10, linestyle='none', color="purple", label="Quiescent Fraction Amplitude", capsize=2)    
     ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
-    ax.set_ylim(0, 3 * max(abs(np.array(eq_amp))))
+    ax.set_ylim(0, 3 * max(eq_amp))
     ax.tick_params(axis='both', which='major', labelsize=16)
     ax.tick_params(axis='both', which='minor', labelsize=16)
     ax.set_ylabel("Amplitude of Quiescent Elliptical Fit", fontsize=16) 
@@ -468,15 +431,9 @@ if show_eq_amp == 1:
 
 if show_sq_amp == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
-    ax.errorbar(filtered_r200_sq[mask_filtered_sq], abs(filtered_sq_amp)[mask_filtered_sq], yerr=filtered_sq_err[mask_filtered_sq], marker='o', markersize = 0, linestyle='none', color="purple", capsize=2, ecolor="black")
-    ax.errorbar(np.array(r200_list)[mask_unfiltered_sq], abs(np.array(sq_amp))[mask_unfiltered_sq], yerr=np.array(sq_err_list)[mask_unfiltered_sq], marker='o', markersize = 0, linestyle='none', color="purple", label="Quiescent Fraction Amplitude", capsize=2)    
-    for x, y, yerr, marker in zip(np.array(r200_list)[mask_unfiltered_sq], 
-                              abs(np.array(sq_amp))[mask_unfiltered_sq], 
-                              np.array(sq_err_list)[mask_unfiltered_sq], 
-                              markers_unfiltered_sq):
-        ax.errorbar(x, y, yerr=yerr, marker=marker, markersize=10, linestyle='none', linewidth = 0,
-                color="purple", capsize=2) 
-    ax.set_ylim(0, 3 * max(abs(np.array(sq_amp))))
+    ax.errorbar(filtered_r200_sq[mask_filtered_sq], filtered_sq_amp[mask_filtered_sq], yerr=filtered_sq_err[mask_filtered_sq], marker='o', markersize = 10, linestyle='none', color="purple", capsize=2, ecolor="black")
+    ax.errorbar(np.array(r200_list)[mask_unfiltered_sq], np.array(sq_amp)[mask_unfiltered_sq], yerr=np.array(sq_err_list)[mask_unfiltered_sq], marker='o', markersize = 10, linestyle='none', color="purple", label="Quiescent Fraction Amplitude", capsize=2)    
+    ax.set_ylim(0, 3 * max(sq_amp))
     ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
     ax.set_ylabel("Amplitude of Quiescent Spiral Fit", fontsize=16) 
     ax.legend(fontsize=16)
@@ -487,15 +444,9 @@ if show_sq_amp == 1:
 
 if show_q_amp == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
-    ax.errorbar(filtered_r200_q[mask_filtered_q], abs(filtered_q_amp)[mask_filtered_q], yerr=filtered_q_err[mask_filtered_q], marker='o', markersize = 0, linestyle='none', color="purple", capsize=2, ecolor="black")
-    ax.errorbar(np.array(r200_list)[mask_unfiltered_q], abs(np.array(q_amp))[mask_unfiltered_q], yerr=np.array(q_err_list)[mask_unfiltered_q], marker='o', markersize = 0, linestyle='none', color="purple", label="Quiescent Fraction Amplitude", capsize=2)    
-    for x, y, yerr, marker in zip(np.array(r200_list)[mask_unfiltered_q], 
-                              abs(np.array(q_amp))[mask_unfiltered_q], 
-                              np.array(q_err_list)[mask_unfiltered_q], 
-                              markers_unfiltered_q):
-        ax.errorbar(x, y, yerr=yerr, marker=marker, markersize=10, linestyle='none', linewidth = 0,
-                color="purple", capsize=2) 
-    ax.set_ylim(0, 3 * max(abs(np.array(q_amp))))
+    ax.errorbar(filtered_r200_q[mask_filtered_q], filtered_q_amp[mask_filtered_q], yerr=filtered_q_err[mask_filtered_q], marker='o', markersize = 10, linestyle='none', color="purple", capsize=2, ecolor="black")
+    ax.errorbar(np.array(r200_list)[mask_unfiltered_q], np.array(q_amp)[mask_unfiltered_q], yerr=np.array(q_err_list)[mask_unfiltered_q], marker='o', markersize = 10, linestyle='none', color="purple", label="Quiescent Fraction Amplitude", capsize=2)    
+    ax.set_ylim(0, 3 * max(q_amp))
     ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
     ax.set_ylabel("Amplitude of Quiescent Galaxies Fit", fontsize=16) 
     ax.legend(fontsize=16)
@@ -506,15 +457,9 @@ if show_q_amp == 1:
 
 if show_s_amp == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
-    ax.errorbar(filtered_r200_s[mask_filtered_s], abs(filtered_s_amp)[mask_filtered_s], yerr=filtered_s_err[mask_filtered_s], marker='o', markersize = 0, linestyle='none', color="purple", capsize=2, ecolor="black")
-    ax.errorbar(np.array(r200_list)[mask_unfiltered_s], abs(np.array(s_amp))[mask_unfiltered_s], yerr=np.array(s_err_list)[mask_unfiltered_s], marker='o', markersize = 0, linestyle='none', color="purple", label="Spiral Fraction Amplitude", capsize=2)    
-    for x, y, yerr, marker in zip(np.array(r200_list)[mask_unfiltered_s], 
-                              abs(np.array(s_amp))[mask_unfiltered_s], 
-                              np.array(s_err_list)[mask_unfiltered_s], 
-                              markers_unfiltered_s):
-        ax.errorbar(x, y, yerr=yerr, marker=marker, markersize=10, linestyle='none', linewidth = 0,
-                color="purple", capsize=2) 
-    ax.set_ylim(0, 3 * max(abs(np.array(s_amp))))
+    ax.errorbar(filtered_r200_s[mask_filtered_s], filtered_s_amp[mask_filtered_s], yerr=filtered_s_err[mask_filtered_s], marker='o', markersize = 10, linestyle='none', color="purple", capsize=2, ecolor="black")
+    ax.errorbar(np.array(r200_list)[mask_unfiltered_s], np.array(s_amp)[mask_unfiltered_s], yerr=np.array(s_err_list)[mask_unfiltered_s], marker='o', markersize = 10, linestyle='none', color="purple", label="Spiral Fraction Amplitude", capsize=2)    
+    ax.set_ylim(0, 3 * max(s_amp))
     ax.tick_params(axis='both', which='major', labelsize=16)
     ax.tick_params(axis='both', which='minor', labelsize=16)
     ax.set_ylabel("Amplitude of Spiral Galaxies Fit", fontsize=16)
@@ -525,16 +470,10 @@ if show_s_amp == 1:
 
 if show_qs_amp == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
-    ax.errorbar(filtered_r200_qs[mask_filtered_qs], abs(filtered_qs_amp)[mask_filtered_qs], yerr=filtered_qs_err[mask_filtered_qs], marker='o', markersize = 0, linestyle='none', color="purple", capsize=2, ecolor="black")
-    ax.errorbar(np.array(r200_list)[mask_unfiltered_qs], abs(np.array(qs_amp))[mask_unfiltered_qs], yerr=np.array(qs_err_list)[mask_unfiltered_qs], marker='o', markersize = 0, linestyle='none', color="purple", label="Quiescent Spiral Fraction Amplitude", capsize=2)    
-    for x, y, yerr, marker in zip(np.array(r200_list)[mask_unfiltered_qs], 
-                              abs(np.array(qs_amp))[mask_unfiltered_qs], 
-                              np.array(qs_err_list)[mask_unfiltered_qs], 
-                              markers_unfiltered_qs):
-        ax.errorbar(x, y, yerr=yerr, marker=marker, markersize=10, linestyle='none', linewidth = 0,
-                color="purple", capsize=2) 
+    ax.errorbar(filtered_r200_qs[mask_filtered_qs], filtered_qs_amp[mask_filtered_qs], yerr=filtered_qs_err[mask_filtered_qs], marker='o', markersize = 10, linestyle='none', color="purple", capsize=2, ecolor="black")
+    ax.errorbar(np.array(r200_list)[mask_unfiltered_qs], np.array(qs_amp)[mask_unfiltered_qs], yerr=np.array(qs_err_list)[mask_unfiltered_qs], marker='o', markersize = 10, linestyle='none', color="purple", label="Quiescent Spiral Fraction Amplitude", capsize=2)    
     ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
-    ax.set_ylim(0, 3 * max(abs(np.array(qs_amp))))
+    ax.set_ylim(0, 3 * max(qs_amp))
     ax.tick_params(axis='both', which='major', labelsize=16)
     ax.tick_params(axis='both', which='minor', labelsize=16)
     ax.set_ylabel("Amplitude of Quiescent Spiral Galaxies Fit", fontsize=16) 
@@ -544,16 +483,10 @@ if show_qs_amp == 1:
 
 if show_fs_amp == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
-    ax.errorbar(filtered_r200_fs[mask_filtered_fs], abs(filtered_fs_amp)[mask_filtered_fs], yerr=filtered_fs_err[mask_filtered_fs], marker='o', markersize = 0, linestyle='none', color="purple", capsize=2, ecolor="black")
-    ax.errorbar(np.array(r200_list)[mask_unfiltered_fs], abs(np.array(fs_amp))[mask_unfiltered_fs], yerr=np.array(fs_err_list)[mask_unfiltered_fs], marker='o', markersize = 0, linestyle='none', color="purple", label="Star-Forming Spiral Fraction Amplitude", capsize=2)    
-    for x, y, yerr, marker in zip(np.array(r200_list)[mask_unfiltered_fs], 
-                              abs(np.array(fs_amp))[mask_unfiltered_fs], 
-                              np.array(fs_err_list)[mask_unfiltered_fs], 
-                              markers_unfiltered_fs):
-        ax.errorbar(x, y, yerr=yerr, marker=marker, markersize=10, linestyle='none', linewidth = 0,
-                color="purple", capsize=2) 
+    ax.errorbar(filtered_r200_fs[mask_filtered_fs], filtered_fs_amp[mask_filtered_fs], yerr=filtered_fs_err[mask_filtered_fs], marker='o', markersize = 10, linestyle='none', color="purple", capsize=2, ecolor="black")
+    ax.errorbar(np.array(r200_list)[mask_unfiltered_fs], np.array(fs_amp)[mask_unfiltered_fs], yerr=np.array(fs_err_list)[mask_unfiltered_fs], marker='o', markersize = 10, linestyle='none', color="purple", label="Star-Forming Spiral Fraction Amplitude", capsize=2)    
     ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
-    ax.set_ylim(0, 3 * max(abs(np.array(fs_amp))))
+    ax.set_ylim(0, 3 * max(fs_amp))
     ax.tick_params(axis='both', which='major', labelsize=16)
     ax.tick_params(axis='both', which='minor', labelsize=16)
     ax.set_ylabel("Amplitude of Star-Forming Spiral Galaxies Fit", fontsize=16) 
@@ -563,15 +496,15 @@ if show_fs_amp == 1:
 
 if show_combined == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
-    ax.plot(np.array(r200_list)[mask_unfiltered_sq], abs(np.array(sq_amp))[mask_unfiltered_sq], marker='o', markersize = 10, linestyle='-', color="purple", label="Spiral Quiescent Fraction Amplitude")  
-    ax.plot(np.array(r200_list)[mask_unfiltered_eq], abs(np.array(eq_amp))[mask_unfiltered_eq], marker='x', markersize = 10, linestyle='-', color="blue", label="Elliptical Quiescent Fraction Amplitude")    
-    ax.plot(np.array(r200_list)[mask_unfiltered_q], abs(np.array(q_amp))[mask_unfiltered_q], marker='D', markersize = 10, linestyle='-', color="orange", label="Quiescent Fraction Amplitude")  
-    ax.plot(np.array(r200_list)[mask_unfiltered_qs], abs(np.array(qs_amp))[mask_unfiltered_qs], marker='s', markersize = 10, linestyle='-', color="grey", label="Quiescent Spiral Fraction Amplitude")  
-    ax.plot(np.array(r200_list)[mask_unfiltered_fs], abs(np.array(fs_amp))[mask_unfiltered_fs], marker='p', markersize = 10, linestyle='-', color="red", label="Star-Forming Spiral Fraction Amplitude")  
+    ax.plot(np.array(r200_list)[mask_unfiltered_sq], np.array(sq_amp)[mask_unfiltered_sq], marker='o', markersize = 10, linestyle='-', color="purple", label="Spiral Quiescent Fraction Amplitude")  
+    ax.plot(np.array(r200_list)[mask_unfiltered_eq], np.array(eq_amp)[mask_unfiltered_eq], marker='x', markersize = 10, linestyle='-', color="blue", label="Elliptical Quiescent Fraction Amplitude")    
+    ax.plot(np.array(r200_list)[mask_unfiltered_q], np.array(q_amp)[mask_unfiltered_q], marker='D', markersize = 10, linestyle='-', color="orange", label="Quiescent Fraction Amplitude")  
+    ax.plot(np.array(r200_list)[mask_unfiltered_qs], np.array(qs_amp)[mask_unfiltered_qs], marker='s', markersize = 10, linestyle='-', color="grey", label="Quiescent Spiral Fraction Amplitude")  
+    ax.plot(np.array(r200_list)[mask_unfiltered_fs], np.array(fs_amp)[mask_unfiltered_fs], marker='p', markersize = 10, linestyle='-', color="red", label="Star-Forming Spiral Fraction Amplitude")  
     ax.tick_params(axis='both', which='major', labelsize=16)
     ax.tick_params(axis='both', which='minor', labelsize=16)
     ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
-    ax.set_ylim(0, 1.5 * max(abs(np.array(fs_amp))))
+    ax.set_ylim(0, 1.5 * max(fs_amp))
     ax.set_ylabel("Amplitude", fontsize=16) 
     ax.legend(fontsize=16)
     ax.grid(axis="y", linestyle="--", alpha=0.7, linewidth = 2)
