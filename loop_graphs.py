@@ -22,19 +22,19 @@ max_vel = 3000 #Maximum velocity difference in km/s between BCG and satellite ga
 signal_to_noise = 1 #Minimum signal-to-noise ratio for galaxy spectra.
 axis_bin = 60
 mergers = ['1_9618', '1_1626', '1_5811', '1_1645']
-min_vel_diff = 0 
+min_vel_diff = 0
 
 use_r200 = 1 #If 1, will use r200 to calculate physical separation. Else, will use physical separation directly.
 max_r200 = 6
 min_r200 = 0
 
-
-show_eq_amp = 1
-show_sq_amp = 1
-show_q_amp = 1
-show_s_amp = 1
-show_qs_amp = 1
-show_fs_amp = 1
+show_eq_amp = 0
+show_sq_amp = 0
+show_q_amp = 0
+show_s_amp = 0
+show_qs_amp = 0
+show_fs_amp = 0
+show_se_amp = 0
 show_combined = 1
 
 show_ef_amp = 0
@@ -55,7 +55,7 @@ if use_r200 == 1:
     normal_steps = [(x, x - first_step) for x in np.arange(first_step, 4.5 + step, step)]
     fixed_pairs = extra_steps + normal_steps
 else:
-    fixed_pairs = [(x, x - 1000) for x in range(1000, 3100, 100)]
+    fixed_pairs = [(x, x - 1000) for x in range(1000, 4100, 100)]
 
 cluster_data = fits.open("catCluster-SPIDERS_RASS_CLUS-v3.0.fits")[1].data
 cluster_df = pd.DataFrame({
@@ -79,6 +79,8 @@ e_amp = []
 s_amp = []
 qs_amp = []
 fs_amp = []
+se_amp = []
+
 r200_list = []
 ef_err_list = []
 eq_err_list = []
@@ -90,6 +92,7 @@ e_err_list = []
 s_err_list = []
 qs_err_list = []
 fs_err_list = []
+se_err_list = []
 
 #for phys_sep, min_phys_sep in fixed_pairs:
 for max_r200, min_r200 in fixed_pairs:
@@ -142,10 +145,9 @@ for max_r200, min_r200 in fixed_pairs:
     phys_sep_galaxy = angular_separation / degrees_per_kpc
     r200_sep_galaxy = phys_sep_galaxy / reduced_clusters_r200[:, None]
 
-    max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 2),-750 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 2) & (r200_sep_galaxy < 4),500,np.nan))
+    max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 2),-750 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 2) & (r200_sep_galaxy < 3),500,np.nan))
 
-    max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 3),-500 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 3) ,np.nan,np.nan))
-
+    #max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 3),-500 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 3) ,np.nan,np.nan))
 
     if use_r200 == 1:
         selected_galaxies_mask = (
@@ -303,6 +305,7 @@ for max_r200, min_r200 in fixed_pairs:
     s_fraction = np.where(total_morph > 0, ((sq_hist + sf_hist) / (total_morph)), 0)
     fs_fraction = np.where(total_forming > 0, (sf_hist / (total_forming)), 0)
     qs_fraction = np.where(total_quiescent > 0, (sq_hist / (total_quiescent)), 0)
+    se_fraction = np.where(total_ellipticals > 0, (total_spirals / (total_ellipticals)), 0)
     ef_fraction_err = np.where(total_ellipticals > 0, np.sqrt((ef_hist / total_ellipticals) * (1 - (ef_hist / total_ellipticals)) / total_ellipticals), np.nan)
     eq_fraction_err = np.where(total_ellipticals > 0, np.sqrt((eq_hist / total_ellipticals) * (1 - (eq_hist / total_ellipticals)) / total_ellipticals), np.nan)
     sq_fraction_err = np.where(total_spirals > 0, np.sqrt((sq_hist / total_spirals) * (1 - (sq_hist / total_spirals)) / total_spirals), np.nan)
@@ -313,6 +316,7 @@ for max_r200, min_r200 in fixed_pairs:
     s_fraction_err = np.where(total_morph > 0, np.sqrt(s_fraction * (1 - s_fraction) / total_morph), np.nan)
     fs_fraction_err = np.where(total_forming > 0, np.sqrt(fs_fraction * (1 - fs_fraction) / total_forming), np.nan)
     qs_fraction_err = np.where(total_quiescent > 0, np.sqrt(qs_fraction * (1 - qs_fraction) / total_quiescent), np.nan)
+    se_fraction_err = np.where(total_ellipticals > 0, np.sqrt(se_fraction * (1 - se_fraction) / total_ellipticals), np.nan)
     popt_ef_frac, pcov_ef_frac = opt.curve_fit(sine_function_2, bin_centres, ef_fraction, sigma = ef_fraction_err, p0 = [0.03, 0.03], absolute_sigma = True)
     popt_eq_frac, pcov_eq_frac = opt.curve_fit(sine_function_2, bin_centres, eq_fraction, sigma = eq_fraction_err, p0 = [0.03, 0.03], absolute_sigma = True)
     popt_sq_frac, pcov_sq_frac = opt.curve_fit(sine_function_2, bin_centres, sq_fraction, sigma = sq_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
@@ -323,6 +327,8 @@ for max_r200, min_r200 in fixed_pairs:
     popt_s_frac, pcov_s_frac = opt.curve_fit(sine_function_2, bin_centres, s_fraction, sigma = s_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
     popt_fs_frac, pcov_fs_frac = opt.curve_fit(sine_function_2, bin_centres, fs_fraction, sigma = fs_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
     popt_qs_frac, pcov_qs_frac = opt.curve_fit(sine_function_2, bin_centres, qs_fraction, sigma = qs_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+    popt_se_frac, pcov_se_frac = opt.curve_fit(sine_function_2, bin_centres, se_fraction, sigma = se_fraction_err, p0 = [0.1, 0.75], absolute_sigma = True)
+
     trialY_ef_frac = sine_function_2(trialX, *popt_ef_frac)
     trialY_eq_frac = sine_function_2(trialX, *popt_eq_frac)
     trialY_sq_frac = sine_function_2(trialX, *popt_sq_frac)
@@ -333,6 +339,7 @@ for max_r200, min_r200 in fixed_pairs:
     trialY_s_frac = sine_function_2(trialX, *popt_s_frac)
     trialY_fs_frac = sine_function_2(trialX, *popt_fs_frac)
     trialY_qs_frac = sine_function_2(trialX, *popt_qs_frac)
+    trialY_se_frac = sine_function_2(trialX, *popt_se_frac)
 
     ef_amp.append(popt_ef_frac[0])
     eq_amp.append(popt_eq_frac[0])
@@ -344,6 +351,7 @@ for max_r200, min_r200 in fixed_pairs:
     s_amp.append(popt_s_frac[0])
     qs_amp.append(popt_qs_frac[0])
     fs_amp.append(popt_fs_frac[0])
+    se_amp.append(popt_se_frac[0])
 
     ef_err_list.append(np.sqrt(pcov_ef_frac[0,0]))
     eq_err_list.append(np.sqrt(pcov_eq_frac[0,0]))
@@ -355,6 +363,7 @@ for max_r200, min_r200 in fixed_pairs:
     s_err_list.append(np.sqrt(pcov_s_frac[0,0]))
     qs_err_list.append(np.sqrt(pcov_qs_frac[0,0]))
     fs_err_list.append(np.sqrt(pcov_fs_frac[0,0]))
+    se_err_list.append(np.sqrt(pcov_se_frac[0,0]))
 
     ef_err_list_sig = 3 * np.array(ef_err_list)
     eq_err_list_sig = 3 * np.array(eq_err_list)
@@ -366,6 +375,7 @@ for max_r200, min_r200 in fixed_pairs:
     s_err_list_sig = 3 * np.array(s_err_list)
     qs_err_list_sig = 3 * np.array(qs_err_list)
     fs_err_list_sig = 3 * np.array(fs_err_list)
+    se_err_list_sig = 3 * np.array(se_err_list)
 
 valid_indices_eq = np.where((abs(np.array(eq_amp)) - np.array(eq_err_list_sig)) > 0)
 filtered_r200_eq = np.array(r200_list)[valid_indices_eq]
@@ -375,12 +385,6 @@ mask_filtered_eq = (filtered_eq_amp != 0.03) & (filtered_eq_amp != 0.1)
 mask_unfiltered_eq = (abs(np.array(eq_amp)) != 0.03) & (abs(np.array(eq_amp)) != 0.1)
 markers_unfiltered_eq = np.where(np.array(eq_amp)[mask_unfiltered_eq] >= 0, '^', 'v')
 markers_filtered_eq = np.where(np.array(filtered_eq_amp)[mask_filtered_eq] >= 0, '^', 'v')
-"""positive_mask_eq = np.array(eq_amp) > 0
-negative_mask_eq = np.array(eq_amp) < 0
-mask_negative_filtered_eq = mask_filtered_eq & negative_mask_eq
-mask_positive_filtered_eq = mask_filtered_eq & positive_mask_eq
-mask_negative_unfiltered_eq = mask_unfiltered_eq & negative_mask_eq
-mask_positive_unfiltered_eq = mask_unfiltered_eq & positive_mask_eq"""
 
 valid_indices_sq = np.where((abs(np.array(sq_amp)) - np.array(sq_err_list_sig)) > 0)
 filtered_r200_sq = np.array(r200_list)[valid_indices_sq]
@@ -426,6 +430,15 @@ mask_filtered_fs = (filtered_fs_amp != 0.03) & (filtered_fs_amp != 0.1)
 mask_unfiltered_fs = (abs(np.array(fs_amp)) != 0.03) & (abs(np.array(fs_amp)) != 0.1)
 markers_unfiltered_fs = np.where(np.array(fs_amp)[mask_unfiltered_fs] >= 0, '^', 'v')
 markers_filtered_fs = np.where(np.array(filtered_fs_amp)[mask_filtered_fs] >= 0, '^', 'v')
+
+valid_indices_se = np.where((abs(np.array(se_amp)) - np.array(se_err_list_sig)) > 0)
+filtered_r200_se = np.array(r200_list)[valid_indices_se]
+filtered_se_amp = np.array(se_amp)[valid_indices_se]
+filtered_se_err = np.array(se_err_list_sig)[valid_indices_se]
+mask_filtered_se = (filtered_se_amp != 0.03) & (filtered_se_amp != 0.1)
+mask_unfiltered_se = (abs(np.array(se_amp)) != 0.03) & (abs(np.array(se_amp)) != 0.1)
+markers_unfiltered_se = np.where(np.array(se_amp)[mask_unfiltered_se] >= 0, '^', 'v')
+markers_filtered_se = np.where(np.array(filtered_se_amp)[mask_filtered_se] >= 0, '^', 'v')
 
 print("eq_amp:", filtered_eq_amp)
 print("sq_amp:", filtered_sq_amp)
@@ -561,6 +574,25 @@ if show_fs_amp == 1:
     ax.grid(axis="y", linestyle="--", alpha=0.7, linewidth = 2)
     plt.show()
 
+if show_se_amp == 1:
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
+    ax.errorbar(filtered_r200_se[mask_filtered_se], abs(filtered_se_amp)[mask_filtered_se], yerr=filtered_se_err[mask_filtered_se], marker='o', markersize = 0, linestyle='none', color="purple", capsize=2, ecolor="black")
+    ax.errorbar(np.array(r200_list)[mask_unfiltered_se], abs(np.array(se_amp))[mask_unfiltered_se], yerr=np.array(se_err_list)[mask_unfiltered_se], marker='o', markersize = 0, linestyle='none', color="purple", label="Quiescent Fraction Amplitude", capsize=2)    
+    for x, y, yerr, marker in zip(np.array(r200_list)[mask_unfiltered_se], 
+                              abs(np.array(se_amp))[mask_unfiltered_se], 
+                              np.array(se_err_list)[mask_unfiltered_se], 
+                              markers_unfiltered_se):
+        ax.errorbar(x, y, yerr=yerr, marker=marker, markersize=10, linestyle='none', linewidth = 0,
+                color="purple", capsize=2) 
+    ax.set_ylim(0, 3 * max(abs(np.array(se_amp))))
+    ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
+    ax.set_ylabel("Amplitude of Spiral:Elliptical Galaxies Fit", fontsize=16) 
+    ax.legend(fontsize=16)
+    ax.tick_params(axis='both', which='major', labelsize=16)
+    ax.tick_params(axis='both', which='minor', labelsize=16)
+    ax.grid(axis="y", linestyle="--", alpha=0.7, linewidth = 2)
+    plt.show()
+
 if show_combined == 1:
     fig, ax = plt.subplots(1, 1, figsize=(20, 12), constrained_layout=True, dpi=200)
     ax.plot(np.array(r200_list)[mask_unfiltered_sq], abs(np.array(sq_amp))[mask_unfiltered_sq], marker='o', markersize = 10, linestyle='-', color="purple", label="Spiral Quiescent Fraction Amplitude")  
@@ -568,11 +600,13 @@ if show_combined == 1:
     ax.plot(np.array(r200_list)[mask_unfiltered_q], abs(np.array(q_amp))[mask_unfiltered_q], marker='D', markersize = 10, linestyle='-', color="orange", label="Quiescent Fraction Amplitude")  
     ax.plot(np.array(r200_list)[mask_unfiltered_qs], abs(np.array(qs_amp))[mask_unfiltered_qs], marker='s', markersize = 10, linestyle='-', color="grey", label="Quiescent Spiral Fraction Amplitude")  
     ax.plot(np.array(r200_list)[mask_unfiltered_fs], abs(np.array(fs_amp))[mask_unfiltered_fs], marker='p', markersize = 10, linestyle='-', color="red", label="Star-Forming Spiral Fraction Amplitude")  
+    ax.plot(np.array(r200_list)[mask_unfiltered_s], abs(np.array(s_amp))[mask_unfiltered_s], marker='h', markersize = 10, linestyle='-', color="green", label="Spiral Fraction Amplitude")      
     ax.tick_params(axis='both', which='major', labelsize=16)
     ax.tick_params(axis='both', which='minor', labelsize=16)
     ax.set_xlabel(r"R/R$_{200}$", fontsize=16)
-    ax.set_ylim(0, 1.5 * max(abs(np.array(fs_amp))))
-    ax.set_ylabel("Amplitude", fontsize=16) 
+    #ax.set_ylim(0, 1.3 * max(abs(np.array(fs_amp))))
+    ax.set_ylim(0, 1.5)
+    ax.set_ylabel("Amplitude", fontsize=16)
     ax.legend(fontsize=16)
     ax.grid(axis="y", linestyle="--", alpha=0.7, linewidth = 2)
     plt.show()
