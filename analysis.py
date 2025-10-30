@@ -8,7 +8,7 @@ cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 from functions import sine_function, sine_function_2, sine_function_3, cosine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
 import matplotlib.collections as mcollections
 
-max_z = 0.125 #Maximum redshift in the sample.
+max_z = 0.115 #Maximum redshift in the sample.
 min_lx = 1e43 #Minimum x-ray luminosity for clusters.
 bin_size = 30 #Size in degrees of the bins.
 axis_bin = 60 #Size in degrees of the axis bins.

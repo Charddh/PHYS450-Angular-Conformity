@@ -31,11 +31,11 @@ min_r200 = 0
 show_eq_amp = 0
 show_sq_amp = 0
 show_q_amp = 0
-show_s_amp = 0
+show_s_amp = 1
 show_qs_amp = 0
 show_fs_amp = 0
 show_se_amp = 0
-show_combined = 1
+show_combined = 0
 
 show_ef_amp = 0
 show_sf_amp = 0
@@ -52,10 +52,10 @@ step = 0.2"""
 
 if use_r200 == 1:
     extra_steps = [(0.45, 0), (0.55, 0.1), (0.65, 0.2)]
-    normal_steps = [(x, x - first_step) for x in np.arange(first_step, 4.5 + step, step)]
+    normal_steps = [(x, x - first_step) for x in np.arange(first_step, 3.5 + step, step)]
     fixed_pairs = extra_steps + normal_steps
 else:
-    fixed_pairs = [(x, x - 1000) for x in range(1000, 4100, 100)]
+    fixed_pairs = [(x, x - 1000) for x in range(1000, 10100, 100)]
 
 cluster_data = fits.open("catCluster-SPIDERS_RASS_CLUS-v3.0.fits")[1].data
 cluster_df = pd.DataFrame({
@@ -145,7 +145,7 @@ for max_r200, min_r200 in fixed_pairs:
     phys_sep_galaxy = angular_separation / degrees_per_kpc
     r200_sep_galaxy = phys_sep_galaxy / reduced_clusters_r200[:, None]
 
-    max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 2),-750 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 2) & (r200_sep_galaxy < 3),500,np.nan))
+    max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 2),-750 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 2),500,np.nan))
 
     #max_vel = np.where((r200_sep_galaxy >= 0) & (r200_sep_galaxy <= 3),-500 * r200_sep_galaxy + 2000,np.where((r200_sep_galaxy > 3) ,np.nan,np.nan))
 

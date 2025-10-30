@@ -21,8 +21,8 @@ max_z = 0.115 #Maximum redshift in the sample.
 min_vel_diff = 0
 
 use_r200 = 1
-max_r200 = 10
-min_r200 = 0
+max_r200 = 3
+min_r200 = 1.6
 
 axis_bin = 60 #Size in degrees of the axis bins.
 sfr_bin_size = 60 #Size in degrees of the bins for the SFR plot.
@@ -37,7 +37,7 @@ show_q_binom = 0
 show_sq_binom = 0 #If 1, will show the quiescent spiral fraction plot.
 show_eq_binom = 0 #If 1, will show the star forming elliptical fraction plot.
 show_phase_heat = 1
-show_phase_combined = 1
+show_phase_combined = 0
 
 phase_bin_size = 0.6
 
