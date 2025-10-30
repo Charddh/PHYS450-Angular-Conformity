@@ -58,7 +58,7 @@ nearby_galaxies['angular_sep_arcsec'] = d2d[mask_near].arcsec
 print("gals", nearby_galaxies)"""
 
 #redMaPPer
-cluster_data1 = pd.read_csv("JApJS2241cat_dr8.csv")
+"""cluster_data1 = pd.read_csv("JApJS2241cat_dr8.csv")
 df_clus1 = pd.DataFrame(cluster_data1)
 
 cluster_data2 = pd.read_csv("JApJS2241sva1exp.csv")
@@ -80,6 +80,76 @@ print("cols", df_clus['RAJ2000'])
 
 clus_coords = SkyCoord(ra=df_clus['RAJ2000'].values*u.deg,
                       dec=df_clus['DEJ2000'].values*u.deg)
+
+gal_coords = SkyCoord(ra=df_gal['coord_ra'].values*u.deg,
+                      dec=df_gal['coord_dec'].values*u.deg)
+
+# Set a threshold for "nearby": say 1 arcminute
+radius = 12 * u.arcmin
+
+# For each galaxy, find the nearest BCG and distance
+idx, d2d, d3d = gal_coords.match_to_catalog_sky(clus_coords)
+
+# Filter galaxies within the radius
+mask_near = d2d < radius
+
+nearby_galaxies = df_gal[mask_near].copy()
+nearby_galaxies['nearest_bcg_index'] = idx[mask_near]
+nearby_galaxies['angular_sep_arcsec'] = d2d[mask_near].arcsec
+
+print("gals", nearby_galaxies)"""
+
+"""#SRG/eROSITA 
+cluster_data1 = pd.read_csv("JA+A685A106emain.csv")
+df_clus = pd.DataFrame(cluster_data1)
+
+#print(df_clus.columns)
+#print("gal", df_bcg.iloc[0])
+
+gal_data = pd.read_csv("lsst_table.csv")
+df_gal = pd.DataFrame(gal_data)
+
+#df_gal = pd.concat([df_gal, new_row], ignore_index=True)
+
+print("cols", df_clus['RAJ2000'])
+
+clus_coords = SkyCoord(ra=df_clus['RAJ2000'].values*u.deg,
+                      dec=df_clus['DEJ2000'].values*u.deg)
+
+gal_coords = SkyCoord(ra=df_gal['coord_ra'].values*u.deg,
+                      dec=df_gal['coord_dec'].values*u.deg)
+
+# Set a threshold for "nearby": say 1 arcminute
+radius = 12 * u.arcmin
+
+# For each galaxy, find the nearest BCG and distance
+idx, d2d, d3d = gal_coords.match_to_catalog_sky(clus_coords)
+
+# Filter galaxies within the radius
+mask_near = d2d < radius
+
+nearby_galaxies = df_gal[mask_near].copy()
+nearby_galaxies['nearest_bcg_index'] = idx[mask_near]
+nearby_galaxies['angular_sep_arcsec'] = d2d[mask_near].arcsec
+
+print("gals", nearby_galaxies)"""
+
+#MACS
+cluster_data1 = pd.read_csv("2010MNRAS.407...83E.csv")
+df_clus = pd.DataFrame(cluster_data1)
+
+#print(df_clus.columns)
+#print("gal", df_bcg.iloc[0])
+
+gal_data = pd.read_csv("lsst_table.csv")
+df_gal = pd.DataFrame(gal_data)
+
+#df_gal = pd.concat([df_gal, new_row], ignore_index=True)
+
+print("cols", df_clus['RA'])
+
+clus_coords = SkyCoord(ra=df_clus['RA'].values*u.deg,
+                      dec=df_clus['Dec'].values*u.deg)
 
 gal_coords = SkyCoord(ra=df_gal['coord_ra'].values*u.deg,
                       dec=df_gal['coord_dec'].values*u.deg)
