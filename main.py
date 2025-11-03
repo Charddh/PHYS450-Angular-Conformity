@@ -76,8 +76,8 @@ show_ssfr = 0
 cluster_data = fits.open("catCluster-SPIDERS_RASS_CLUS-v3.0.fits")[1].data
 #Convert the structured array to a dictionary with byte-swapping and endian conversion for each column.
 cluster_df = pd.DataFrame({
-    name: cluster_data[name].byteswap().newbyteorder()  #Apply byte-swapping and endian conversion to each field.
-    for name in cluster_data.dtype.names  #Iterate over each field name in the structured array.
+    name: cluster_data[name].byteswap().view(cluster_data[name].dtype.newbyteorder())
+    for name in cluster_data.dtype.names
 })
 
 #Import the galaxy zoo and bcg datasets.
