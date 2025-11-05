@@ -4,6 +4,8 @@ from astropy.cosmology import FlatLambdaCDM
 import scipy.optimize as opt
 from astropy.io import fits
 import pandas as pd
+from astropy.coordinates import SkyCoord
+import astropy.units as u
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 from functions import sine_function, calculate_r200, sine_function_2, sine_function_3, calculate_radial_distance, calculate_velocity_distance, cosine_function, horizontal_line, chi_squared, chi2_red, assign_morph, calculate_theta
 
@@ -26,49 +28,6 @@ sfr_bin_size = 60 #Size in degrees of the bins for the SFR plot.
 min_satellite_mass = 10.2 #Minimum satellite galaxy mass.
 #max_satellite_mass = 11.5 #Maximum satellite galaxy mass.
 max_satellite_mass = 11.5 #Maximum satellite galaxy mass.
-mergers = ['1_9618', '1_1626', '1_5811', '1_1645']
-
-show_qs = 0
-show_fs = 0
-show_q_binom = 0
-show_sq_binom = 0 #If 1, will show the quiescent spiral fraction plot.
-show_eq_binom = 0 #If 1, will show the star forming elliptical fraction plot.
-show_phase_heat = 1
-show_phase_combined = 0
-
-phase_bin_size = 0.6
-
-restricted = 1
-
-show_elliptical = 0 #If 1, will show the elliptical fraction plot.
-show_quiescent = 0 #If 1, will show the quiescent fraction plot.
-
-signal_to_noise = 1 #Minimum signal-to-noise ratio for galaxy spectra.
-axis_bin = 60
-
-show_eq_phase = 0
-show_sq_phase = 0
-show_q_phase = 0
-show_qs_phase = 0
-show_fs_phase = 0
-show_phase_space = 0
-show_phase_space_r200 = 0
-show_ef = 0 #If 1, will show the star forming elliptical fraction plot.
-show_ef_binom = 0 #If 1, will show the star forming elliptical fraction plot.
-show_eq = 0 #If 1, will show the star forming elliptical fraction plot.
-show_sq = 0 #If 1, will show the quiescent spiral fraction plot.
-show_sf = 0 #If 1, will show the quiescent spiral fraction plot.
-show_sf_binom = 0 #If 1, will show the quiescent spiral fraction plot.
-show_q = 0 #If 1, will show the quiescent fraction plot.
-show_f = 0 #If 1, will show the star forming fraction plot.
-show_f_binom = 0
-show_e = 0 #If 1, will show the elliptical fraction plot.
-show_e_binom = 0 #If 1, will show the elliptical fraction plot.
-show_s = 0 #If 1, will show the spiral fraction plot.
-show_s_binom = 0 #If 1, will show the spiral fraction plot.
-show_ssfr = 0
-
-#Open the cluster FITS file and retrieve the data from the second HDU (Header Data Unit).
 
 cluster_data1 = pd.read_csv("VII110Atable3.csv")
 df_clus1 = pd.DataFrame(cluster_data1)
@@ -83,46 +42,42 @@ cluster_df = pd.concat(
     ignore_index=True
 )
 
-cluster_data = fits.open("catCluster-SPIDERS_RASS_CLUS-v3.0.fits")[1].data
-#Convert the structured array to a dictionary with byte-swapping and endian conversion for each column.
-cluster_df = pd.DataFrame({
-    name: cluster_data[name].byteswap().view(cluster_data[name].dtype.newbyteorder())
-    for name in cluster_data.dtype.names
-})
+print(cluster_df.columns)
 
-#print("cluster_df:", cluster_df.columns)
-
-gal_data = pd.read_csv("lsst_table.csv")
+gal_data = pd.read_csv("lsst_dp1.csv")
 galaxy_df = pd.DataFrame(gal_data)
 
-galaxy_df = pd.DataFrame(fits.open("GZDR1SFRMASS.fits")[1].data)
-
 print(galaxy_df.columns)
+clus_coords = SkyCoord(ra=cluster_df['_RA_icrs'].values*u.deg,
+                      dec=cluster_df['_DE_icrs'].values*u.deg)
 
-bcg_df = pd.DataFrame(fits.open("SpidersXclusterBCGs-v2.0.fits")[1].data)
+gal_coords = SkyCoord(ra=galaxy_df['coord_ra'].values*u.deg,
+                      dec=galaxy_df['coord_dec'].values*u.deg)
 
-"""cluster_id = cluster_df['ACO'].values
+# Set a threshold for "nearby": say 1 arcminute
+radius = 12 * u.arcmin
+
+# For each galaxy, find the nearest BCG and distance
+idx, d2d, d3d = gal_coords.match_to_catalog_sky(clus_coords)
+
+# Filter galaxies within the radius
+mask_near = d2d < radius
+
+nearby_galaxies = galaxy_df[mask_near].copy()
+nearby_galaxies['nearest_bcg_index'] = idx[mask_near]
+nearby_galaxies['angular_sep_arcsec'] = d2d[mask_near].arcsec
+
+cluster_id = cluster_df['recno'].values
 cluster_ra = cluster_df['_RA_icrs'].values
 cluster_dec = cluster_df['_DE_icrs'].values
-cluster_z = cluster_df['z'].values"""
+cluster_z = cluster_df['z'].values
 
-cluster_id = cluster_df['CLUS_ID'].values
-cluster_ra = cluster_df['RA'].values
-cluster_dec = cluster_df['DEC'].values
-cluster_z = cluster_df['SCREEN_CLUZSPEC'].values
+gal_id = nearby_galaxies['objectId'].values
+gal_ra = nearby_galaxies['coord_ra'].values
+gal_dec= nearby_galaxies['coord_dec'].values
+gal_z = nearby_galaxies['bpz_z_median'].values
 
-#Extract relevant columns from the galaxy zoo dataframe.
-"""gal_id = galaxy_df['objectId'].values
-gal_ra = galaxy_df['coord_ra'].values
-gal_dec= galaxy_df['coord_dec'].values
-gal_z = galaxy_df['knn_z_median'].values"""
-
-gal_id = galaxy_df['SPECOBJID_1'].values
-gal_ra = galaxy_df['RA_1'].values
-gal_dec= galaxy_df['DEC_1'].values
-gal_z = galaxy_df['Z'].values
-
-"""#Calculate the angular separation and redshift difference.
+#Calculate the angular separation and redshift difference.
 ra_diff = cluster_ra[:, None] - gal_ra  #Broadcast the RA difference calculation.
 dec_diff = cluster_dec[:, None] - gal_dec  #Broadcast the Dec difference calculation.
 z_diff = np.abs(cluster_z[:, None] - gal_z)  #Compute absolute redshift difference.
@@ -135,89 +90,25 @@ degrees_per_kpc = (1 / 3600) * cosmo.arcsec_per_kpc_proper(cluster_z[:, None]).v
 phys_sep_galaxy = angular_separation / degrees_per_kpc
 #r200_sep_galaxy = phys_sep_galaxy / reduced_clusters_r200[:, None]
 
-
-max_vel = np.where(
-    (phys_sep_galaxy >= 0) & (phys_sep_galaxy <= 3000),
-    -0.43 * phys_sep_galaxy + 2000,
-    np.where(
-        (phys_sep_galaxy > 3000),
-        np.inf,
-        np.nan))
-
+max_vel = 30000
 
 selected_galaxies_mask = (
     (phys_sep_galaxy <= phys_sep) & 
-    (phys_sep_galaxy > min_phys_sep) &
     (z_diff < max_vel / 3e5))
 
 selected_counts = [np.sum(selected_galaxies_mask[i]) for i in range(len(cluster_ra))]
 print("Sel", sum(selected_counts))
 
-cluster_locals_id = [gal_id[selected_galaxies_mask[i]] for i in range(len(cluster_ra))]
-print("1")
-cluster_locals_ra = [gal_ra[selected_galaxies_mask[i]] for i in range(len(cluster_ra))]
-print("2")
-cluster_locals_dec = [gal_dec[selected_galaxies_mask[i]] for i in range(len(cluster_ra))]
-print("3")
-cluster_locals_z = [gal_z[selected_galaxies_mask[i]] for i in range(len(cluster_ra))]
-"""
+cluster_locals_id = [gal_id[selected_galaxies_mask[i]] for i in range(len(cluster_ra)) if np.any(selected_galaxies_mask[i])]
+cluster_locals_ra = [gal_ra[selected_galaxies_mask[i]] for i in range(len(cluster_ra)) if np.any(selected_galaxies_mask[i])]
+cluster_locals_dec = [gal_dec[selected_galaxies_mask[i]] for i in range(len(cluster_ra)) if np.any(selected_galaxies_mask[i])]
+cluster_locals_z = [gal_z[selected_galaxies_mask[i]] for i in range(len(cluster_ra)) if np.any(selected_galaxies_mask[i])]
 
-chunk_size = 100  # Adjust as needed
-n_clusters = len(cluster_ra)
-n_chunks = int(np.ceil(n_clusters / chunk_size))
+local_galaxies = pd.DataFrame({'id': cluster_locals_id, 'ra': cluster_locals_ra, 'dec': cluster_locals_dec, 'z': cluster_locals_z})
 
-selected_counts = []
-cluster_locals_id = []
-cluster_locals_ra = []
-cluster_locals_dec = []
-cluster_locals_z = []
+print(local_galaxies)
 
-for i, start in enumerate(range(0, n_clusters, chunk_size)):
-    end = min(start + chunk_size, n_clusters)
-    
-    print(f"Processing chunk {i+1}/{n_chunks} ({end}/{n_clusters} clusters)...", flush=True)
-    
-    # Slice chunk of clusters
-    ra_chunk = cluster_ra[start:end]
-    dec_chunk = cluster_dec[start:end]
-    z_chunk = cluster_z[start:end]
-    
-    # Compute angular separation for this chunk
-    ra_diff = gal_ra[None, :] - ra_chunk[:, None]
-    dec_diff = gal_dec[None, :] - dec_chunk[:, None]
-    z_diff = np.abs(gal_z[None, :] - cluster_z[:, None])
-    ang_sep = np.sqrt((ra_diff**2) * np.cos(np.radians(dec_chunk[:, None]))**2 + dec_diff**2)
-    
-    degrees_per_kpc = (1 / 3600) * cosmo.arcsec_per_kpc_proper(z_chunk[:, None]).value
-    phys_sep_galaxy = ang_sep / degrees_per_kpc
-    
-    max_vel = np.where(
-        (phys_sep_galaxy >= 0) & (phys_sep_galaxy <= 3000),
-        -0.43 * phys_sep_galaxy + 2000,
-        np.where(phys_sep_galaxy > 3000, np.inf, np.nan)
-    )
-    
-    # z_diff might need slicing too if it's 2D
-    selected_mask = (
-        (phys_sep_galaxy <= phys_sep) & 
-        (phys_sep_galaxy > min_phys_sep) &
-        (z_diff[start:end, :] < max_vel / 3e5)
-    )
-
-    selected_counts.extend(np.sum(selected_mask, axis=1))
-    cluster_locals_id.extend([gal_id[m] for m in selected_mask])
-    cluster_locals_ra.extend([gal_ra[m] for m in selected_mask])
-    cluster_locals_dec.extend([gal_dec[m] for m in selected_mask])
-    cluster_locals_z.extend([gal_z[m] for m in selected_mask])
-    
-    print(f"✅ Finished chunk {i+1}/{n_chunks}")
-
-print("✅ All chunks complete!")
-print("Total selected galaxies:", sum(selected_counts))
-
-df_clusters = pd.DataFrame({'id': cluster_locals_id, 'ra': cluster_locals_ra, 'dec': cluster_locals_dec, 'z': cluster_locals_z})
-
-print(df_clusters.head())
+local_galaxies = local_galaxies.explode(['id', 'ra', 'dec', 'z']).reset_index(drop=True)
 
 #Create a list of Galaxy data for each cluster.
 reduced_clusters_locals_id = [gz_id[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]

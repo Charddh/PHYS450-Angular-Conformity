@@ -83,7 +83,7 @@ cluster_df = pd.concat(
     ignore_index=True
 )
 
-gal_data = pd.read_csv("lsst_table.csv")
+gal_data = pd.read_csv("lsst_dp1.csv")
 df_gal = pd.DataFrame(gal_data)
 
 clus_coords = SkyCoord(ra=cluster_df['RAJ2000'].values*u.deg,
@@ -108,12 +108,12 @@ nearby_galaxies['angular_sep_arcsec'] = d2d[mask_near].arcsec
 cluster_id = cluster_df['ID'].values
 cluster_ra = cluster_df['RAJ2000'].values
 cluster_dec = cluster_df['DEJ2000'].values
-cluster_z = cluster_df['zspec'].values
+cluster_z = cluster_df['zlambda'].values
 
 gal_id = nearby_galaxies['objectId'].values
 gal_ra = nearby_galaxies['coord_ra'].values
 gal_dec= nearby_galaxies['coord_dec'].values
-gal_z = nearby_galaxies['knn_z_median'].values
+gal_z = nearby_galaxies['bpz_z_median'].values
 
 #Calculate the angular separation and redshift difference.
 ra_diff = cluster_ra[:, None] - gal_ra  #Broadcast the RA difference calculation.

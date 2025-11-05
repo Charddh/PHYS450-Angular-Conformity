@@ -70,6 +70,8 @@ show_s = 0 #If 1, will show the spiral fraction plot.
 show_s_binom = 0 #If 1, will show the spiral fraction plot.
 show_ssfr = 0
 
+max_vel = 3000
+
 #Open the cluster FITS file and retrieve the data from the second HDU (Header Data Unit).
 
 cluster_data1 = pd.read_csv("JA+A685A106emain.csv")
@@ -87,7 +89,7 @@ gal_coords = SkyCoord(ra=df_gal['coord_ra'].values*u.deg,
                       dec=df_gal['coord_dec'].values*u.deg)
 
 # Set a threshold for "nearby": say 1 arcminute
-radius = 12 * u.arcmin
+radius = 10 * u.arcmin
 
 # For each galaxy, find the nearest BCG and distance
 idx, d2d, d3d = gal_coords.match_to_catalog_sky(clus_coords)
@@ -121,14 +123,6 @@ angular_separation = np.sqrt((ra_diff ** 2) * (np.cos(np.radians(cluster_dec[:, 
 degrees_per_kpc = (1 / 3600) * cosmo.arcsec_per_kpc_proper(cluster_z[:, None]).value
 phys_sep_galaxy = angular_separation / degrees_per_kpc
 #r200_sep_galaxy = phys_sep_galaxy / reduced_clusters_r200[:, None]
-
-max_vel = np.where(
-    (phys_sep_galaxy >= 0) & (phys_sep_galaxy <= 3000),
-    -0.43 * phys_sep_galaxy + 2000,
-    np.where(
-        (phys_sep_galaxy > 3000),
-        np.inf,
-        np.nan))
 
 selected_galaxies_mask = (
     (phys_sep_galaxy <= phys_sep) & 
