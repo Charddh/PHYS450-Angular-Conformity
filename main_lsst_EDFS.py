@@ -70,19 +70,19 @@ show_s = 0 #If 1, will show the spiral fraction plot.
 show_s_binom = 0 #If 1, will show the spiral fraction plot.
 show_ssfr = 0
 
-
-cluster_data1 = pd.read_csv("JAJ14752table2.csv")
-cluster_df = pd.DataFrame(cluster_data1)
-
-
-cluster_df = cluster_df[cluster_df["Cl"].astype(str).str.contains("4|5", na=False)]
-print(cluster_df["Ng"].mean())
+cluster_data = fits.open("spt3g_edfs_cluster_catalog_A25.fits")[1].data
+#Convert the structured array to a dictionary with byte-swapping and endian conversion for each column.
+cluster_df = pd.DataFrame({
+    name: cluster_data[name].byteswap().view(cluster_data[name].dtype.newbyteorder())
+    for name in cluster_data.dtype.names
+})
+cluster_df = cluster_df[cluster_df["redshift"].notna() & (cluster_df["redshift"] > 0)]
 
 gal_data = pd.read_csv("lsst_dp1.csv")
 df_gal = pd.DataFrame(gal_data)
 
-clus_coords = SkyCoord(ra=cluster_df['RAJ2000'].values*u.deg,
-                      dec=cluster_df['DEJ2000'].values*u.deg)
+clus_coords = SkyCoord(ra=cluster_df['ra(deg)'].values*u.deg,
+                      dec=cluster_df['dec(deg)'].values*u.deg)
 
 gal_coords = SkyCoord(ra=df_gal['coord_ra'].values*u.deg,
                       dec=df_gal['coord_dec'].values*u.deg)
@@ -100,10 +100,10 @@ nearby_galaxies = df_gal[mask_near].copy()
 nearby_galaxies['nearest_bcg_index'] = idx[mask_near]
 nearby_galaxies['angular_sep_arcsec'] = d2d[mask_near].arcsec
 
-cluster_id = cluster_df['recno'].values
-cluster_ra = cluster_df['RAJ2000'].values
-cluster_dec = cluster_df['DEJ2000'].values
-cluster_z = cluster_df['z1'].values
+cluster_id = cluster_df['iau_name'].values
+cluster_ra = cluster_df['ra(deg)'].values
+cluster_dec = cluster_df['dec(deg)'].values
+cluster_z = cluster_df['redshift'].values
 
 gal_id = nearby_galaxies['objectId'].values
 gal_ra = nearby_galaxies['coord_ra'].values
@@ -131,6 +131,7 @@ max_vel = np.where(
         0,
         np.nan))
 
+
 selected_galaxies_mask = (
     (phys_sep_galaxy <= phys_sep) & 
     (z_diff < max_vel / 3e5))
@@ -139,17 +140,13 @@ selected_counts = [np.sum(selected_galaxies_mask[i]) for i in range(len(cluster_
 print("Sel", sum(selected_counts))
 
 cluster_locals_id = [gal_id[selected_galaxies_mask[i]] for i in range(len(cluster_ra))]
-print("1")
 cluster_locals_ra = [gal_ra[selected_galaxies_mask[i]] for i in range(len(cluster_ra))]
-print("2")
 cluster_locals_dec = [gal_dec[selected_galaxies_mask[i]] for i in range(len(cluster_ra))]
-print("3")
 cluster_locals_z = [gal_z[selected_galaxies_mask[i]] for i in range(len(cluster_ra))]
-print("4")
 
 df_clusters = pd.DataFrame({'cluster_id': cluster_id, 'cluster_ra': cluster_ra, 'cluster_dec': cluster_dec, 'cluster_z': cluster_z, 'id': cluster_locals_id, 'ra': cluster_locals_ra, 'dec': cluster_locals_dec, 'z': cluster_locals_z})
 
-print(df_clusters["cluster_z"].mean())
+print(df_clusters.head())
 
 #Create a list of Galaxy data for each cluster.
 reduced_clusters_locals_id = [gz_id[selected_galaxies_mask[i]] for i in range(len(reduced_clusters_ra))]
