@@ -41,7 +41,6 @@ for i in range(1, 21):
         periods.append(None)
 
 periods = [34,1.4,2.2,2.6,20,16,1.4,23,20,4.6,8,25,14.5,8,2,1.05,15.5,26,40,1.3]
-print(len(periods))
 
 # Create DataFrame with quality indicators
 lightcurve_df = pd.DataFrame({
@@ -52,7 +51,8 @@ lightcurve_df = pd.DataFrame({
 
 merged_df = pd.merge(lightcurve_df, ceph_df, on='Star')
 
-print("head", merged_df.head())
+with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+    print(merged_df)
 
 """i = 5
 filename = f'C{i}_lightcurve.dat'
@@ -185,11 +185,11 @@ merged_df["distance(pc)"] = 10 ** ((merged_df["SN_apparentVmag"] - SN_absVmag_va
 
 merged_df["distance(Mpc)"] = merged_df["distance(pc)"] / 1e6
 
+with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+    print(merged_df)
+
 x = merged_df["distance(Mpc)"].values
 y = merged_df["v(kms)"].values
-
-print("x",x)
-print("y",y)
 
 # Perform least squares fit (degree 1 for a line)
 A, B = np.polyfit(x, y, 1)
